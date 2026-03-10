@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -34,8 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Stack(
         children: [
-          // Заглушка карты на весь экран
-          Positioned.fill(child: _MockMapWidget()),
+          // Реальная интерактивная карта на весь экран
+          const Positioned.fill(child: _RealMapWidget()),
 
           // Форма поиска снизу
           if (_onboardingDone)
@@ -180,11 +182,11 @@ class _HomeScreenState extends State<HomeScreen> {
           // Откуда / Куда
           Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: _SearchField(label: 'Откуда', hint: 'Место отправления'),
               ),
               const SizedBox(width: 10),
-              Expanded(
+              const Expanded(
                 child: _SearchField(label: 'Куда', hint: 'Место назначения'),
               ),
             ],
@@ -192,11 +194,11 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: _SearchField(label: 'Оплата', hint: 'Переводом/наличными'),
               ),
               const SizedBox(width: 10),
-              Expanded(
+              const Expanded(
                 child: _SearchField(label: 'Дата', hint: 'дд.мм.гггг'),
               ),
             ],
@@ -254,6 +256,7 @@ class _SearchField extends StatelessWidget {
                 fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Container(
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: AppTheme.surfaceVariant,
@@ -269,71 +272,73 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-// ── Заглушка карты ────────────────────────────────────────────────────────────
-class _MockMapWidget extends StatelessWidget {
+// ── Реальная карта ────────────────────────────────────────────────────────────
+class _RealMapWidget extends StatelessWidget {
+  const _RealMapWidget();
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFE8EDF2),
-      child: CustomPaint(
-        painter: _FullMapPainter(),
-        child: const SizedBox.expand(),
-      ),
+    return Stack(
+      children: [
+        FlutterMap(
+          options: const MapOptions(
+            initialCenter: LatLng(56.4977, 84.9744), // Координаты Томска
+            initialZoom: 13.0,
+            interactionOptions: InteractionOptions(
+              flags: InteractiveFlag.all & ~InteractiveFlag.rotate, // Отключаем вращение для удобства
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.vaibnakolesah.app', // Укажи свой package name
+            ),
+          ],
+        ),
+        // Центральный маркер (пин), который остается по центру при свайпе карты
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 36), // Смещение вверх, чтобы острие указывало в центр
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withAlpha(100),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.white, width: 3),
+                  ),
+                ),
+                Container(
+                  width: 4,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: AppTheme.textPrimary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Container(
+                  width: 12,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(60),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
-}
-
-class _FullMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = const Color(0xFFCFD8DC)
-      ..strokeWidth = 1.0;
-
-    // Сетка кварталов
-    for (double y = 0; y < size.height; y += 36) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-    for (double x = 0; x < size.width; x += 48) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-
-    // Магистрали
-    final road = Paint()
-      ..color = const Color(0xFFB0BEC5)
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(Offset(0, size.height * 0.35), Offset(size.width, size.height * 0.35), road);
-    canvas.drawLine(Offset(0, size.height * 0.6), Offset(size.width, size.height * 0.6), road);
-    canvas.drawLine(Offset(size.width * 0.3, 0), Offset(size.width * 0.3, size.height), road);
-    canvas.drawLine(Offset(size.width * 0.65, 0), Offset(size.width * 0.65, size.height), road);
-
-    // Дороги потоньше
-    final road2 = Paint()
-      ..color = const Color(0xFFCFD8DC)
-      ..strokeWidth = 4;
-    canvas.drawLine(Offset(0, size.height * 0.2), Offset(size.width, size.height * 0.2), road2);
-    canvas.drawLine(Offset(0, size.height * 0.5), Offset(size.width, size.height * 0.5), road2);
-    canvas.drawLine(Offset(0, size.height * 0.75), Offset(size.width, size.height * 0.75), road2);
-    canvas.drawLine(Offset(size.width * 0.15, 0), Offset(size.width * 0.15, size.height), road2);
-    canvas.drawLine(Offset(size.width * 0.5, 0), Offset(size.width * 0.5, size.height), road2);
-    canvas.drawLine(Offset(size.width * 0.8, 0), Offset(size.width * 0.8, size.height), road2);
-
-    // Метка
-    final cx = size.width * 0.5;
-    final cy = size.height * 0.42;
-
-    final shadowPaint = Paint()..color = Colors.black.withAlpha(40)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawCircle(Offset(cx, cy + 6), 14, shadowPaint);
-
-    final pinPaint = Paint()..color = const Color(0xFF7C5CBF);
-    canvas.drawCircle(Offset(cx, cy), 14, pinPaint);
-
-    final whitePaint = Paint()..color = Colors.white;
-    canvas.drawCircle(Offset(cx, cy), 6, whitePaint);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
