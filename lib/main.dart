@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'data/trip_repository_impl.dart';
 import 'data/booking_repository_impl.dart';
 import 'domain/use_cases/search_trips_use_case.dart';
@@ -46,7 +47,6 @@ class VaibNaKolesahApp extends StatelessWidget {
   }
 }
 
-
 class _RootScreen extends StatelessWidget {
   const _RootScreen();
 
@@ -54,9 +54,7 @@ class _RootScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthViewModel>(
       builder: (context, auth, _) {
-        if (auth.isLoggedIn) {
-          return const MainNavigationScreen();
-        }
+        if (auth.isLoggedIn) return const MainNavigationScreen();
         return const LoginScreen();
       },
     );
@@ -73,7 +71,8 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  late final List<Widget> _screens = [
+  // ❌ Убрали const из списка — ProfileScreen использует context.watch
+  final List<Widget> _screens = [
     const HomeScreen(),
     const TripsScreen(),
     const MessagesScreen(),
@@ -83,13 +82,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppTheme.divider, width: 1)),
+          border: Border(top: BorderSide(color: AppTheme.divider)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,

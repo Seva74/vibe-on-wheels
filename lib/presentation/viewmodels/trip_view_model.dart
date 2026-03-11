@@ -21,20 +21,16 @@ class TripViewModel extends ChangeNotifier {
         _joinUseCase = joinUseCase,
         _tripRepository = tripRepository;
 
-
   ViewState _searchState = ViewState.idle;
   List<Trip> _trips = [];
   String _searchError = '';
 
-
   ViewState _bookingState = ViewState.idle;
   String _bookingError = '';
-
 
   BookingConfirmationStatus _confirmationStatus = BookingConfirmationStatus.none;
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
-
 
   final Map<String, Driver> _driversCache = {};
 
@@ -48,7 +44,6 @@ class TripViewModel extends ChangeNotifier {
   BookingConfirmationStatus get confirmationStatus => _confirmationStatus;
   Trip? get confirmedTrip => _confirmedTrip;
   Driver? get confirmedDriver => _confirmedDriver;
-
 
   Future<void> fetchTrips({required String from, required String to}) async {
     final latinOnly = RegExp(r'^[a-zA-Z\s]+$');
@@ -66,7 +61,7 @@ class TripViewModel extends ChangeNotifier {
 
     try {
       _trips = await _searchUseCase.execute(from: from, to: to);
-      _searchState = _trips.isEmpty ? ViewState.success : ViewState.success;
+      _searchState = ViewState.success;
       for (final trip in _trips) {
         _prefetchDriver(trip.driverId);
       }
@@ -88,7 +83,6 @@ class TripViewModel extends ChangeNotifier {
 
   Driver? getDriverForTrip(String driverId) => _driversCache[driverId];
 
-
   Future<bool> handleJoinRequest(Trip trip) async {
     _bookingState = ViewState.loading;
     notifyListeners();
@@ -98,6 +92,7 @@ class TripViewModel extends ChangeNotifier {
         tripId: trip.tripId,
         passengerId: 'p1',
       );
+
       if (!result) {
         _bookingState = ViewState.error;
         _bookingError = 'Не удалось забронировать поездку.';
@@ -110,7 +105,6 @@ class TripViewModel extends ChangeNotifier {
       _confirmedTrip = trip;
       _confirmedDriver = _driversCache[trip.driverId];
       notifyListeners();
-
 
       Future.delayed(const Duration(seconds: 3), () {
         _confirmationStatus = BookingConfirmationStatus.driverAccepted;
