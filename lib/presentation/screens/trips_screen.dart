@@ -29,11 +29,22 @@ class _TripsScreenState extends State<TripsScreen> {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    if (date.day == now.day && date.month == now.month) return 'Сегодня';
-    if (date.day == now.day + 1 && date.month == now.month) return 'Завтра';
+    final today = DateUtils.dateOnly(DateTime.now());
+    final targetDate = DateUtils.dateOnly(date);
+    final dayDiff = targetDate.difference(today).inDays;
+
+    if (dayDiff == 0) return 'Сегодня';
+    if (dayDiff == 1) return 'Завтра';
+
     const months = ['','янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
     return '${date.day} ${months[date.month]}';
+  }
+
+  @override
+  void dispose() {
+    _fromController.dispose();
+    _toController.dispose();
+    super.dispose();
   }
 
   @override
@@ -141,6 +152,7 @@ class _TripsScreenState extends State<TripsScreen> {
                       : () => vm.fetchTrips(
                             from: _fromController.text,
                             to: _toController.text,
+                            date: _selectedDate,
                           ),
                   icon: vm.searchState == ViewState.loading
                       ? const SizedBox(
@@ -258,7 +270,9 @@ class _TripsScreenState extends State<TripsScreen> {
             const SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: () => vm.fetchTrips(
-                  from: _fromController.text, to: _toController.text),
+                  from: _fromController.text,
+                  to: _toController.text,
+                  date: _selectedDate),
               icon: const Icon(Icons.refresh),
               label: const Text('Попробовать снова'),
               style: OutlinedButton.styleFrom(
@@ -298,7 +312,11 @@ class _TripsScreenState extends State<TripsScreen> {
             OutlinedButton.icon(
               onPressed: () {
                 setState(() => _selectedDate = DateTime.now());
-                vm.fetchTrips(from: _fromController.text, to: _toController.text);
+                vm.fetchTrips(
+                  from: _fromController.text,
+                  to: _toController.text,
+                  date: _selectedDate,
+                );
               },
               icon: const Icon(Icons.calendar_today, size: 16),
               label: const Text('Искать на другую дату'),
@@ -325,7 +343,7 @@ class _TripsScreenState extends State<TripsScreen> {
           child: Row(
             children: [
               Text(
-                'Найдено ${vm.trips.length} поездки',
+                'Найдено ${vm.trips.length} поездок',
                 style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -353,22 +371,27 @@ class _TripsScreenState extends State<TripsScreen> {
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             itemCount: vm.trips.length,
-            itemBuilder: (context, i) => _TripCard(
-              trip: vm.trips[i],
-              driver: vm.getDriverForTrip(vm.trips[i].driverId),
-              onTap: (trip, driver) {
-                if (driver == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChangeNotifierProvider.value(
-                      value: vm,
-                      child: TripDetailsScreen(trip: trip, driver: driver),
+            itemBuilder: (context, i) {
+              final trip = vm.trips[i];
+
+              return _TripCard(
+                key: ValueKey(trip.tripId),
+                trip: trip,
+                driver: vm.getDriverForTrip(trip.driverId),
+                onTap: (trip, driver) {
+                  if (driver == null) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider.value(
+                        value: vm,
+                        child: TripDetailsScreen(trip: trip, driver: driver),
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
@@ -382,7 +405,7 @@ class _TripCard extends StatelessWidget {
   final Driver? driver;
   final void Function(Trip, Driver?) onTap;
 
-  const _TripCard({required this.trip, required this.driver, required this.onTap});
+  const _TripCard({super.key, required this.trip, required this.driver, required this.onTap});
 
   String _formatTime(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';

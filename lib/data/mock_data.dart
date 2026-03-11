@@ -85,12 +85,25 @@ final Map<String, Passenger> mockUsers = {
 
 /// Генерация поездок по маршруту
 /// Эндпоинт: GET /api/trips?from=...&to=...&date=...  → List<Trip>
-List<Trip> generateMockTrips({required String from, required String to}) {
-  final now = DateTime.now();
+List<Trip> generateMockTrips({
+  required String from,
+  required String to,
+  DateTime? date,
+}) {
+  final referenceDay = date == null
+      ? DateTime.now()
+      : DateTime(date.year, date.month, date.day);
+  final baseDeparture = DateTime(
+    referenceDay.year,
+    referenceDay.month,
+    referenceDay.day,
+    8,
+  );
+
   return [
     Trip(
       tripId: 't1',
-      startTime: now.add(const Duration(hours: 2)),
+      startTime: baseDeparture.add(const Duration(hours: 2)),
       price: 480,
       totalSeats: 4,
       status: TripStatus.planned,
@@ -101,7 +114,7 @@ List<Trip> generateMockTrips({required String from, required String to}) {
     ),
     Trip(
       tripId: 't2',
-      startTime: now.add(const Duration(hours: 3, minutes: 30)),
+      startTime: baseDeparture.add(const Duration(hours: 3, minutes: 30)),
       price: 650,
       totalSeats: 3,
       status: TripStatus.planned,
@@ -112,7 +125,7 @@ List<Trip> generateMockTrips({required String from, required String to}) {
     ),
     Trip(
       tripId: 't3',
-      startTime: now.add(const Duration(hours: 5)),
+      startTime: baseDeparture.add(const Duration(hours: 5)),
       price: 730,
       totalSeats: 4,
       status: TripStatus.planned,
@@ -123,7 +136,7 @@ List<Trip> generateMockTrips({required String from, required String to}) {
     ),
     Trip(
       tripId: 't4',
-      startTime: now.add(const Duration(hours: 6, minutes: 15)),
+      startTime: baseDeparture.add(const Duration(hours: 6, minutes: 15)),
       price: 350,
       totalSeats: 2,
       status: TripStatus.planned,
