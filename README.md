@@ -5,7 +5,7 @@
 
 запустить в android studio эмулятор "телефона", после его загрузки перейти в папку с проектом (medium phone с 35 версией api и 15 android (Vanilla Ice Cream)
 
-В папке с проектом выполнить команды flutter pub get и flutter run и выбрать запушенный девайс
+В папке с проектом выполнить команды flutter pub get потом выполнить команду flutter create . и flutter run и выбрать запушенный девайс
 
 ## Структура проекта
 
