@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import 'data/trip_repository_impl.dart';
 import 'data/booking_repository_impl.dart';
 import 'domain/use_cases/search_trips_use_case.dart';
 import 'domain/use_cases/join_trip_use_case.dart';
 import 'presentation/viewmodels/trip_view_model.dart';
+import 'presentation/viewmodels/auth_view_model.dart';
 import 'presentation/theme/app_theme.dart';
+import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/trips_screen.dart';
 import 'presentation/screens/message_screen.dart';
@@ -26,6 +27,7 @@ class VaibNaKolesahApp extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthViewModel()),
         ChangeNotifierProvider(
           create: (_) => TripViewModel(
             searchUseCase: SearchTripsUseCase(tripRepo),
@@ -38,8 +40,25 @@ class VaibNaKolesahApp extends StatelessWidget {
         title: 'ВайбНаКолёсах',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
-        home: const MainNavigationScreen(),
+        home: const _RootScreen(),
       ),
+    );
+  }
+}
+
+
+class _RootScreen extends StatelessWidget {
+  const _RootScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthViewModel>(
+      builder: (context, auth, _) {
+        if (auth.isLoggedIn) {
+          return const MainNavigationScreen();
+        }
+        return const LoginScreen();
+      },
     );
   }
 }
