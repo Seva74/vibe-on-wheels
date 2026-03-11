@@ -5,6 +5,11 @@ import 'mock_data.dart';
 
 class TripRepositoryImpl implements ITripRepository {
   static const _networkDelay = Duration(milliseconds: 800);
+  static const _driverDelay = Duration(milliseconds: 200);
+
+  final Map<String, Driver> _driversById = {
+    for (final driver in mockDrivers) driver.id: driver,
+  };
 
   @override
   Future<List<Trip>> findTrips({
@@ -14,18 +19,14 @@ class TripRepositoryImpl implements ITripRepository {
   }) async {
     // Имитируем GET /api/trips?from=...&to=...
     await Future.delayed(_networkDelay);
-    return generateMockTrips(from: from, to: to);
+    return generateMockTrips(from: from, to: to, date: time);
   }
 
   @override
   Future<Driver?> getDriverById(String id) async {
     // Имитируем GET /api/drivers/:id
-    await Future.delayed(const Duration(milliseconds: 200));
-    try {
-      return mockDrivers.firstWhere((d) => d.id == id);
-    } catch (_) {
-      return null;
-    }
+    await Future.delayed(_driverDelay);
+    return _driversById[id];
   }
 
   @override
