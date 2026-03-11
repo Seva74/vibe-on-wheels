@@ -23,7 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _formatPhone(String value) {
-    // Оставляем только цифры после +7
     final digits = value.replaceAll(RegExp(r'[^\d]'), '');
     if (digits.isEmpty) return '+7 ';
 
@@ -68,7 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const SizedBox(height: 40),
 
-                  // Заголовок
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -83,7 +81,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const Spacer(flex: 2),
 
-                  // Логотип
                   Column(
                     children: [
                       Container(
@@ -114,7 +111,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const Spacer(flex: 2),
 
-                  // Поле телефона
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -162,7 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      // Ошибка
                       if (vm.state == AuthState.error) ...[
                         const SizedBox(height: 8),
                         Row(
@@ -188,7 +183,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Кнопка входа
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -223,7 +217,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Ссылка на регистрацию
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -263,7 +256,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ── Экран регистрации (заглушка по вайрфрейму) ────────────────────────────────
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -300,7 +292,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 32),
 
-              // Аватар-заглушка
               Container(
                 width: 72,
                 height: 72,
@@ -315,7 +306,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 32),
 
-              // Фамилия
               TextField(
                 decoration: InputDecoration(
                   labelText: 'Введите фамилию',
@@ -334,8 +324,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
 
               const SizedBox(height: 12),
-
-              // Имя
               TextField(
                 decoration: InputDecoration(
                   labelText: 'Введите имя',
@@ -355,7 +343,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 12),
 
-              // Возраст
               TextField(
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
@@ -376,7 +363,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 20),
 
-              // Пол
               Row(
                 children: [
                   _GenderChip(
@@ -395,7 +381,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const Spacer(),
 
-              // Кнопка продолжить
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
