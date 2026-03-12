@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show Point;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -20,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const LatLng _defaultCenter = LatLng(56.4977, 84.9744);
+  static const double _wheelZoomStep = 0.4;
 
   bool _onboardingDone = false;
   int _onboardingStep = 0;
@@ -44,8 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   _LocationInput _activeInput = _LocationInput.from;
   _SearchStep _searchStep = _SearchStep.route;
-  String _mapHint =
-      'Укажите точку отправления и назначения: вручную или тапом по карте.';
   int _geocodeToken = 0;
 
   final List<Map<String, String>> _onboardingSteps = [
@@ -62,6 +63,25 @@ class _HomeScreenState extends State<HomeScreen> {
           'В этом разделе вы сможете общаться с попутчиками. Оформите поездку и начните чат!',
     },
   ];
+
+  _SheetLayout get _sheetLayout {
+    switch (_searchStep) {
+      case _SearchStep.route:
+        return const _SheetLayout(
+          initialSize: 0.38,
+          minSize: 0.24,
+          maxSize: 0.52,
+          snapSizes: [0.24, 0.38, 0.52],
+        );
+      case _SearchStep.details:
+        return const _SheetLayout(
+          initialSize: 0.58,
+          minSize: 0.42,
+          maxSize: 0.84,
+          snapSizes: [0.42, 0.58, 0.84],
+        );
+    }
+  }
 
   @override
   void initState() {
@@ -86,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _notesController.dispose();
     _fromFocusNode.dispose();
     _toFocusNode.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -105,11 +126,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (requestFocus) {
-      final focus = input == _LocationInput.from
+      final focusNode = input == _LocationInput.from
           ? _fromFocusNode
           : _toFocusNode;
-      focus.requestFocus();
+      focusNode.requestFocus();
     }
+  }
+
+  void _setSearchStep(_SearchStep step) {
+    if (_searchStep == step) return;
+    setState(() {
+      _searchStep = step;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -153,39 +181,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _setActiveInput(input);
 
-    final coordinatePoint = _tryParseCoordinates(rawQuery);
-    if (coordinatePoint != null) {
-      _setLocationValue(
-        input,
-        coordinatePoint,
-        _formatCoordinates(coordinatePoint),
-      );
-      _mapController.move(coordinatePoint, 13.5);
+    final coordinates = _tryParseCoordinates(rawQuery);
+    if (coordinates != null) {
+      _setLocationValue(input, coordinates, _formatCoordinates(coordinates));
+      _mapController.move(coordinates, 13.5);
       return true;
     }
 
     final requestId = ++_geocodeToken;
     setState(() {
       _isGeocoding = true;
-      _mapHint = 'Ищу ${_locationLabel(input).toLowerCase()} на карте...';
     });
 
     final result = await _NominatimApi.search(rawQuery);
     if (!mounted || requestId != _geocodeToken) return false;
 
-    if (result == null) {
-      setState(() {
-        _isGeocoding = false;
-        _mapHint =
-            'Не удалось найти адрес "$rawQuery". Уточните адрес или выберите точку на карте.';
-      });
-      _showSnackBar('Адрес не найден');
-      return false;
-    }
-
     setState(() {
       _isGeocoding = false;
     });
+
+    if (result == null) {
+      _showSnackBar('Адрес не найден');
+      return false;
+    }
 
     _setLocationValue(input, result.point, result.label);
     _mapController.move(result.point, 13.5);
@@ -201,24 +219,41 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _isGeocoding = true;
       _setPoint(input, point);
-      _mapHint =
-          'Определяю адрес для ${_locationLabel(input).toLowerCase()}...';
     });
 
     final resolvedAddress = await _NominatimApi.reverse(point);
     if (!mounted || requestId != _geocodeToken) return;
 
-    final nextLabel = resolvedAddress == null || resolvedAddress.trim().isEmpty
+    final label = resolvedAddress == null || resolvedAddress.trim().isEmpty
         ? _formatCoordinates(point)
         : _compactAddress(resolvedAddress);
 
     setState(() {
       _isGeocoding = false;
       _setPoint(input, point);
-      _setControllerText(input, nextLabel);
-      _mapHint =
-          '${_locationLabel(input)} обновлено: $nextLabel. Можно продолжать ввод.';
+      _setControllerText(input, label);
     });
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+
+    final camera = _mapController.camera;
+    final delta = event.scrollDelta.dy;
+    if (delta == 0) return;
+
+    final targetZoom = camera.clampZoom(
+      camera.zoom + (delta < 0 ? _wheelZoomStep : -_wheelZoomStep),
+    );
+
+    if ((targetZoom - camera.zoom).abs() < 0.001) return;
+
+    final targetCenter = camera.focusedZoomCenter(
+      Point<double>(event.localPosition.dx, event.localPosition.dy),
+      targetZoom,
+    );
+
+    _mapController.move(targetCenter, targetZoom);
   }
 
   Future<void> _goToDetailsStep() async {
@@ -232,16 +267,13 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final fromOk = await _searchAddressFor(_LocationInput.from);
-    if (!mounted || !fromOk) return;
+    final fromFound = await _searchAddressFor(_LocationInput.from);
+    if (!mounted || !fromFound) return;
 
-    final toOk = await _searchAddressFor(_LocationInput.to);
-    if (!mounted || !toOk) return;
+    final toFound = await _searchAddressFor(_LocationInput.to);
+    if (!mounted || !toFound) return;
 
-    setState(() {
-      _searchStep = _SearchStep.details;
-      _mapHint = 'Маршрут сохранен. Теперь укажите детали поездки.';
-    });
+    _setSearchStep(_SearchStep.details);
   }
 
   Future<void> _submitSearch() async {
@@ -252,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (from.isEmpty || to.isEmpty) {
       _showSnackBar('Заполните поля Откуда и Куда');
-      setState(() => _searchStep = _SearchStep.route);
+      _setSearchStep(_SearchStep.route);
       return;
     }
 
@@ -260,7 +292,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await vm.fetchTrips(from: from, to: to, time: _selectedDateTime);
 
     if (!mounted) return;
-
     if (vm.searchState == ViewState.error) {
       _showSnackBar(vm.searchError);
       return;
@@ -282,7 +313,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _toController.text = fromText;
       _fromPoint = toPoint;
       _toPoint = fromPoint;
-      _mapHint = 'Откуда и Куда поменялись местами.';
     });
 
     if (_fromPoint != null) {
@@ -295,7 +325,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _setPoint(input, point);
       _setControllerText(input, compact);
-      _mapHint = '${_locationLabel(input)}: $compact';
     });
   }
 
@@ -324,9 +353,10 @@ class _HomeScreenState extends State<HomeScreen> {
   String _compactAddress(String rawAddress) {
     final parts = rawAddress
         .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
+        .map((element) => element.trim())
+        .where((element) => element.isNotEmpty)
         .toList();
+
     if (parts.length < 2) return rawAddress.trim();
     return '${parts[0]}, ${parts[1]}';
   }
@@ -378,9 +408,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _formatTime(TimeOfDay time) {
-    final h = time.hour.toString().padLeft(2, '0');
-    final m = time.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   void _showSnackBar(String text) {
@@ -391,6 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sheetLayout = _sheetLayout;
+
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Найти попутчика'), centerTitle: true),
@@ -398,17 +430,16 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Positioned.fill(child: _buildMap()),
           if (_onboardingDone)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: AnimatedPadding(
-                duration: const Duration(milliseconds: 180),
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: _buildSearchForm(context),
-              ),
+            DraggableScrollableSheet(
+              key: ValueKey(_searchStep),
+              initialChildSize: sheetLayout.initialSize,
+              minChildSize: sheetLayout.minSize,
+              maxChildSize: sheetLayout.maxSize,
+              snap: true,
+              snapSizes: sheetLayout.snapSizes,
+              builder: (context, scrollController) {
+                return _buildBottomSheet(scrollController);
+              },
             ),
           if (!_onboardingDone)
             Positioned(
@@ -429,8 +460,8 @@ class _HomeScreenState extends State<HomeScreen> {
       markers.add(
         Marker(
           point: _fromPoint!,
-          width: 44,
-          height: 44,
+          width: 42,
+          height: 42,
           child: const _MapPointMarker(
             color: AppTheme.primary,
             icon: Icons.play_arrow_rounded,
@@ -444,8 +475,8 @@ class _HomeScreenState extends State<HomeScreen> {
       markers.add(
         Marker(
           point: _toPoint!,
-          width: 44,
-          height: 44,
+          width: 42,
+          height: 42,
           child: const _MapPointMarker(
             color: AppTheme.success,
             icon: Icons.flag,
@@ -457,70 +488,88 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: _defaultCenter,
-            initialZoom: 10.8,
-            interactionOptions: const InteractionOptions(
-              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-            ),
-            onTap: (_, point) => _onMapTap(point),
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.vaibnakolesah.app',
-            ),
-            if (_fromPoint != null && _toPoint != null)
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: [_fromPoint!, _toPoint!],
-                    color: AppTheme.primary.withAlpha(150),
-                    strokeWidth: 4,
-                  ),
-                ],
+        Listener(
+          onPointerSignal: _handlePointerSignal,
+          child: FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _defaultCenter,
+              initialZoom: 10.8,
+              interactionOptions: const InteractionOptions(
+                flags:
+                    InteractiveFlag.all &
+                    ~InteractiveFlag.rotate &
+                    ~InteractiveFlag.scrollWheelZoom,
               ),
-            MarkerLayer(markers: markers),
-          ],
+              onTap: (_, point) => _onMapTap(point),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.vaibnakolesah.app',
+              ),
+              if (_fromPoint != null && _toPoint != null)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: [_fromPoint!, _toPoint!],
+                      color: AppTheme.primary.withAlpha(150),
+                      strokeWidth: 4,
+                    ),
+                  ],
+                ),
+              MarkerLayer(markers: markers),
+            ],
+          ),
         ),
         Positioned(
           top: 14,
           left: 14,
           right: 14,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(230),
+              color: Colors.white.withAlpha(228),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                Icon(
-                  _activeInput == _LocationInput.from
-                      ? Icons.radio_button_checked
-                      : Icons.location_on,
+                const Icon(
+                  Icons.touch_app_outlined,
                   size: 16,
                   color: AppTheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Тап по карте заполнит: ${_locationLabel(_activeInput)}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
+                const Text(
+                  'Карта ->',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
                   ),
                 ),
-                if (_isGeocoding)
+                const SizedBox(width: 6),
+                _MapTargetChip(
+                  label: 'Откуда',
+                  selected: _activeInput == _LocationInput.from,
+                  onTap: () =>
+                      _setActiveInput(_LocationInput.from, requestFocus: true),
+                ),
+                const SizedBox(width: 6),
+                _MapTargetChip(
+                  label: 'Куда',
+                  selected: _activeInput == _LocationInput.to,
+                  onTap: () =>
+                      _setActiveInput(_LocationInput.to, requestFocus: true),
+                ),
+                if (_isGeocoding) ...[
+                  const Spacer(),
                   const SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                ],
               ],
             ),
           ),
@@ -551,13 +600,13 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
               _onboardingSteps.length,
-              (i) => AnimatedContainer(
+              (index) => AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: i == _onboardingStep ? 20 : 8,
+                width: index == _onboardingStep ? 20 : 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: i == _onboardingStep
+                  color: index == _onboardingStep
                       ? AppTheme.primary
                       : AppTheme.divider,
                   borderRadius: BorderRadius.circular(4),
@@ -624,28 +673,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSearchForm(BuildContext context) {
-    final maxHeight = _searchStep == _SearchStep.route
-        ? MediaQuery.of(context).size.height * 0.42
-        : MediaQuery.of(context).size.height * 0.62;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
-      decoration: BoxDecoration(
+  Widget _buildBottomSheet(ScrollController scrollController) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(20),
+            color: Color.fromRGBO(0, 0, 0, 0.08),
             blurRadius: 16,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SafeArea(
+        top: false,
         child: SingleChildScrollView(
+          controller: scrollController,
           physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           child: _searchStep == _SearchStep.route
               ? _buildRouteStep()
               : _buildDetailsStep(),
@@ -658,82 +704,31 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Center(
-          child: Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.divider,
-              borderRadius: BorderRadius.circular(2),
+        const _SheetHandle(),
+        const SizedBox(height: 10),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Маршрут поездки',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
             ),
           ),
         ),
-        const _StepHeader(title: 'Шаг 1 из 2', subtitle: 'Маршрут поездки'),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: ChoiceChip(
-                label: const Text('Карта -> Откуда'),
-                selected: _activeInput == _LocationInput.from,
-                onSelected: (_) =>
-                    _setActiveInput(_LocationInput.from, requestFocus: true),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ChoiceChip(
-                label: const Text('Карта -> Куда'),
-                selected: _activeInput == _LocationInput.to,
-                onSelected: (_) =>
-                    _setActiveInput(_LocationInput.to, requestFocus: true),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _MapHintBar(hint: _mapHint, loading: _isGeocoding),
-        const SizedBox(height: 10),
-        _LocationField(
-          label: 'Откуда',
-          hint: 'Введите место отправления',
-          controller: _fromController,
-          focusNode: _fromFocusNode,
-          active: _activeInput == _LocationInput.from,
-          icon: Icons.radio_button_checked,
-          onTap: () => _setActiveInput(_LocationInput.from),
-          onSubmit: () => _searchAddressFor(_LocationInput.from),
-        ),
-        Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceVariant,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppTheme.divider),
-            ),
-            child: IconButton(
-              onPressed: _swapLocations,
-              icon: const Icon(Icons.swap_vert, size: 17),
-              color: AppTheme.primary,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-              padding: EdgeInsets.zero,
-              splashRadius: 18,
-              tooltip: 'Поменять местами',
-            ),
-          ),
-        ),
-        _LocationField(
-          label: 'Куда',
-          hint: 'Введите место назначения',
-          controller: _toController,
-          focusNode: _toFocusNode,
-          active: _activeInput == _LocationInput.to,
-          icon: Icons.location_on,
-          onTap: () => _setActiveInput(_LocationInput.to),
-          onSubmit: () => _searchAddressFor(_LocationInput.to),
+        _RouteComposerCard(
+          fromController: _fromController,
+          toController: _toController,
+          fromFocusNode: _fromFocusNode,
+          toFocusNode: _toFocusNode,
+          activeInput: _activeInput,
+          onFromTap: () => _setActiveInput(_LocationInput.from),
+          onToTap: () => _setActiveInput(_LocationInput.to),
+          onFromSubmit: () => _searchAddressFor(_LocationInput.from),
+          onToSubmit: () => _searchAddressFor(_LocationInput.to),
+          onSwap: _swapLocations,
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -755,23 +750,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Center(
-          child: Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.divider,
-              borderRadius: BorderRadius.circular(2),
+        const _SheetHandle(),
+        const SizedBox(height: 10),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Детали поездки',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
             ),
           ),
         ),
-        const _StepHeader(title: 'Шаг 2 из 2', subtitle: 'Параметры поездки'),
         const SizedBox(height: 10),
         _RouteSummaryCard(
           from: _fromController.text.trim(),
           to: _toController.text.trim(),
-          onEdit: () => setState(() => _searchStep = _SearchStep.route),
+          onEdit: () => _setSearchStep(_SearchStep.route),
         ),
         const SizedBox(height: 10),
         Row(
@@ -835,8 +831,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () =>
-                      setState(() => _searchStep = _SearchStep.route),
+                  onPressed: () => _setSearchStep(_SearchStep.route),
                   icon: const Icon(Icons.arrow_back, size: 16),
                   label: const Text('Назад'),
                   style: OutlinedButton.styleFrom(
@@ -880,130 +875,177 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _LocationField extends StatelessWidget {
-  final String label;
-  final String hint;
+class _SheetLayout {
+  final double initialSize;
+  final double minSize;
+  final double maxSize;
+  final List<double> snapSizes;
+
+  const _SheetLayout({
+    required this.initialSize,
+    required this.minSize,
+    required this.maxSize,
+    required this.snapSizes,
+  });
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 36,
+        height: 4,
+        decoration: BoxDecoration(
+          color: AppTheme.divider,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteComposerCard extends StatelessWidget {
+  final TextEditingController fromController;
+  final TextEditingController toController;
+  final FocusNode fromFocusNode;
+  final FocusNode toFocusNode;
+  final _LocationInput activeInput;
+  final VoidCallback onFromTap;
+  final VoidCallback onToTap;
+  final Future<bool> Function() onFromSubmit;
+  final Future<bool> Function() onToSubmit;
+  final VoidCallback onSwap;
+
+  const _RouteComposerCard({
+    required this.fromController,
+    required this.toController,
+    required this.fromFocusNode,
+    required this.toFocusNode,
+    required this.activeInput,
+    required this.onFromTap,
+    required this.onToTap,
+    required this.onFromSubmit,
+    required this.onToSubmit,
+    required this.onSwap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                _RouteInputRow(
+                  controller: fromController,
+                  focusNode: fromFocusNode,
+                  hint: 'Откуда',
+                  icon: Icons.radio_button_checked,
+                  active: activeInput == _LocationInput.from,
+                  onTap: onFromTap,
+                  onSubmit: onFromSubmit,
+                ),
+                const Divider(height: 1, color: AppTheme.divider),
+                _RouteInputRow(
+                  controller: toController,
+                  focusNode: toFocusNode,
+                  hint: 'Куда',
+                  icon: Icons.location_on,
+                  active: activeInput == _LocationInput.to,
+                  onTap: onToTap,
+                  onSubmit: onToSubmit,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 32,
+            child: IconButton(
+              onPressed: onSwap,
+              icon: const Icon(Icons.swap_vert, size: 18),
+              color: AppTheme.primary,
+              padding: EdgeInsets.zero,
+              splashRadius: 18,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Поменять местами',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RouteInputRow extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool active;
+  final String hint;
   final IconData icon;
+  final bool active;
   final VoidCallback onTap;
   final Future<bool> Function() onSubmit;
 
-  const _LocationField({
-    required this.label,
-    required this.hint,
+  const _RouteInputRow({
     required this.controller,
     required this.focusNode,
-    required this.active,
+    required this.hint,
     required this.icon,
+    required this.active,
     required this.onTap,
     required this.onSubmit,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppTheme.textHint,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceVariant,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: active ? AppTheme.primary : Colors.transparent,
-              width: active ? 1.4 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              const SizedBox(width: 10),
-              Icon(
-                icon,
-                color: active ? AppTheme.primary : AppTheme.textHint,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  onTap: onTap,
-                  onEditingComplete: onSubmit,
-                  onSubmitted: (_) => onSubmit(),
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: hint,
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: onSubmit,
-                icon: const Icon(Icons.travel_explore, size: 18),
-                color: AppTheme.primary,
-                tooltip: 'Показать на карте',
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StepHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _StepHeader({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: AppTheme.primarySurface,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: const Icon(Icons.route, size: 18, color: AppTheme.primary),
+        Icon(
+          icon,
+          size: 18,
+          color: active ? AppTheme.primary : AppTheme.textHint,
         ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            onTap: onTap,
+            onEditingComplete: onSubmit,
+            onSubmitted: (_) => onSubmit(),
+            textInputAction: TextInputAction.search,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
             ),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+            decoration: InputDecoration(
+              hintText: hint,
+              border: InputBorder.none,
+              isDense: true,
+              filled: false,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
-          ],
+          ),
+        ),
+        IconButton(
+          onPressed: onSubmit,
+          icon: const Icon(Icons.travel_explore, size: 17),
+          color: AppTheme.primary,
+          splashRadius: 18,
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Показать на карте',
         ),
       ],
     );
@@ -1042,8 +1084,8 @@ class _RouteSummaryCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,
-                color: AppTheme.textPrimary,
                 fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
               ),
             ),
           ),
@@ -1098,6 +1140,7 @@ class _TextInputField extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: hint,
                     border: InputBorder.none,
+                    filled: false,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -1235,39 +1278,36 @@ class _SeatsSelector extends StatelessWidget {
   }
 }
 
-class _MapHintBar extends StatelessWidget {
-  final String hint;
-  final bool loading;
+class _MapTargetChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _MapHintBar({required this.hint, required this.loading});
+  const _MapTargetChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.primarySurface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.accent),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.map_outlined, size: 16, color: AppTheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              hint,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
-            ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.primary : AppTheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : AppTheme.textPrimary,
           ),
-          if (loading)
-            const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -1340,7 +1380,6 @@ class _NominatimApi {
     if (lat == null || lon == null) return null;
 
     final label = (first['display_name'] as String?) ?? query;
-
     return _GeocodedPoint(point: LatLng(lat, lon), label: label);
   }
 
@@ -1358,7 +1397,6 @@ class _NominatimApi {
 
     final name = data['display_name'];
     if (name is! String || name.trim().isEmpty) return null;
-
     return name;
   }
 
