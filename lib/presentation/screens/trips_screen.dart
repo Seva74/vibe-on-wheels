@@ -29,14 +29,24 @@ class _TripsScreenState extends State<TripsScreen> {
   }
 
   String _formatDate(DateTime date) {
-    final today = DateUtils.dateOnly(DateTime.now());
-    final targetDate = DateUtils.dateOnly(date);
-    final dayDiff = targetDate.difference(today).inDays;
-
-    if (dayDiff == 0) return 'Сегодня';
-    if (dayDiff == 1) return 'Завтра';
-
-    const months = ['','янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+    final now = DateTime.now();
+    if (date.day == now.day && date.month == now.month) return 'Сегодня';
+    if (date.day == now.day + 1 && date.month == now.month) return 'Завтра';
+    const months = [
+      '',
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'май',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек',
+    ];
     return '${date.day} ${months[date.month]}';
   }
 
@@ -52,12 +62,7 @@ class _TripsScreenState extends State<TripsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Поездки')),
-      body: Column(
-        children: [
-          _buildSearchPanel(),
-          _buildResultsArea(),
-        ],
-      ),
+      body: Column(children: [_buildSearchPanel(), _buildResultsArea()]),
     );
   }
 
@@ -74,12 +79,19 @@ class _TripsScreenState extends State<TripsScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.radio_button_checked, color: AppTheme.primary, size: 20),
+              const Icon(
+                Icons.radio_button_checked,
+                color: AppTheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
                   controller: _fromController,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Откуда',
                     border: InputBorder.none,
@@ -93,7 +105,11 @@ class _TripsScreenState extends State<TripsScreen> {
           ),
           Padding(
             padding: const EdgeInsets.only(left: 9),
-            child: Container(width: 2, height: 16, color: AppTheme.primaryLight),
+            child: Container(
+              width: 2,
+              height: 16,
+              color: AppTheme.primaryLight,
+            ),
           ),
           Row(
             children: [
@@ -102,7 +118,10 @@ class _TripsScreenState extends State<TripsScreen> {
               Expanded(
                 child: TextField(
                   controller: _toController,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Куда',
                     border: InputBorder.none,
@@ -122,7 +141,10 @@ class _TripsScreenState extends State<TripsScreen> {
               GestureDetector(
                 onTap: _pickDate,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
@@ -131,14 +153,19 @@ class _TripsScreenState extends State<TripsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.calendar_today, size: 15, color: AppTheme.primary),
+                      const Icon(
+                        Icons.calendar_today,
+                        size: 15,
+                        color: AppTheme.primary,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         _formatDate(_selectedDate),
                         style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                     ],
                   ),
@@ -150,21 +177,30 @@ class _TripsScreenState extends State<TripsScreen> {
                   onPressed: vm.searchState == ViewState.loading
                       ? null
                       : () => vm.fetchTrips(
-                            from: _fromController.text,
-                            to: _toController.text,
-                            date: _selectedDate,
+                          from: _fromController.text,
+                          to: _toController.text,
+                          time: DateTime(
+                            _selectedDate.year,
+                            _selectedDate.month,
+                            _selectedDate.day,
                           ),
+                        ),
                   icon: vm.searchState == ViewState.loading
                       ? const SizedBox(
                           width: 15,
                           height: 15,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.search, size: 17),
                   label: const Text('Найти'),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 9,
+                    ),
                   ),
                 ),
               ),
@@ -208,12 +244,20 @@ class _TripsScreenState extends State<TripsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.directions_car_outlined, size: 64, color: AppTheme.primaryLight),
+          Icon(
+            Icons.directions_car_outlined,
+            size: 64,
+            color: AppTheme.primaryLight,
+          ),
           const SizedBox(height: 16),
           const Text(
             'Введите маршрут и нажмите Найти',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 15, color: AppTheme.textSecondary, height: 1.5),
+            style: TextStyle(
+              fontSize: 15,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -231,8 +275,9 @@ class _TripsScreenState extends State<TripsScreen> {
           Text(
             'Ищем поездки...',
             style: TextStyle(
-                fontSize: 15,
-                color: AppTheme.textSecondary.withAlpha(200)),
+              fontSize: 15,
+              color: AppTheme.textSecondary.withAlpha(200),
+            ),
           ),
         ],
       ),
@@ -254,32 +299,50 @@ class _TripsScreenState extends State<TripsScreen> {
                 color: AppTheme.error.withAlpha(20),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.error_outline, color: AppTheme.error, size: 36),
+              child: const Icon(
+                Icons.error_outline,
+                color: AppTheme.error,
+                size: 36,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
               'Ошибка поиска',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: () => vm.fetchTrips(
-                  from: _fromController.text,
-                  to: _toController.text,
-                  date: _selectedDate),
+                from: _fromController.text,
+                to: _toController.text,
+                time: DateTime(
+                  _selectedDate.year,
+                  _selectedDate.month,
+                  _selectedDate.day,
+                ),
+              ),
               icon: const Icon(Icons.refresh),
               label: const Text('Попробовать снова'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.primary,
                 side: const BorderSide(color: AppTheme.primary),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -306,7 +369,11 @@ class _TripsScreenState extends State<TripsScreen> {
             Text(
               'По маршруту ${_fromController.text} → ${_toController.text}\nна выбранную дату нет доступных поездок.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 20),
             OutlinedButton.icon(
@@ -315,7 +382,11 @@ class _TripsScreenState extends State<TripsScreen> {
                 vm.fetchTrips(
                   from: _fromController.text,
                   to: _toController.text,
-                  date: _selectedDate,
+                  time: DateTime(
+                    _selectedDate.year,
+                    _selectedDate.month,
+                    _selectedDate.day,
+                  ),
                 );
               },
               icon: const Icon(Icons.calendar_today, size: 16),
@@ -324,7 +395,8 @@ class _TripsScreenState extends State<TripsScreen> {
                 foregroundColor: AppTheme.primary,
                 side: const BorderSide(color: AppTheme.primary),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -345,13 +417,17 @@ class _TripsScreenState extends State<TripsScreen> {
               Text(
                 'Найдено ${vm.trips.length} поездок',
                 style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondary,
+                ),
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.primarySurface,
                   borderRadius: BorderRadius.circular(10),
@@ -359,9 +435,10 @@ class _TripsScreenState extends State<TripsScreen> {
                 child: Text(
                   '${_fromController.text} → ${_toController.text}',
                   style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primary),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
                 ),
               ),
             ],
@@ -405,7 +482,11 @@ class _TripCard extends StatelessWidget {
   final Driver? driver;
   final void Function(Trip, Driver?) onTap;
 
-  const _TripCard({super.key, required this.trip, required this.driver, required this.onTap});
+  const _TripCard({
+    required this.trip,
+    required this.driver,
+    required this.onTap,
+  });
 
   String _formatTime(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
@@ -445,13 +526,17 @@ class _TripCard extends StatelessWidget {
                   child: Text(
                     '${trip.startLocation.address} → ${trip.endLocation.address}',
                     style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primarySurface,
                     borderRadius: BorderRadius.circular(10),
@@ -459,9 +544,10 @@ class _TripCard extends StatelessWidget {
                   child: Text(
                     '${trip.price.toInt()} ₽',
                     style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primary),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primary,
+                    ),
                   ),
                 ),
               ],
@@ -469,21 +555,35 @@ class _TripCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(Icons.access_time, size: 14, color: AppTheme.textSecondary),
+                const Icon(
+                  Icons.access_time,
+                  size: 14,
+                  color: AppTheme.textSecondary,
+                ),
                 const SizedBox(width: 4),
-                Text(_formatTime(trip.startTime),
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  _formatTime(trip.startTime),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(width: 14),
-                const Icon(Icons.event_seat, size: 14, color: AppTheme.textSecondary),
+                const Icon(
+                  Icons.event_seat,
+                  size: 14,
+                  color: AppTheme.textSecondary,
+                ),
                 const SizedBox(width: 4),
-                Text('$seats ${_seatsLabel(seats)}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  '$seats ${_seatsLabel(seats)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -497,9 +597,10 @@ class _TripCard extends StatelessWidget {
                   child: Text(
                     driver?.name.substring(0, 1) ?? '?',
                     style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.primary),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primary,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -512,35 +613,48 @@ class _TripCard extends StatelessWidget {
                           Text(
                             driver?.name ?? 'Загрузка...',
                             style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
                           ),
                           if (driver?.isVerified == true) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.verified,
-                                size: 13, color: AppTheme.primary),
+                            const Icon(
+                              Icons.verified,
+                              size: 13,
+                              color: AppTheme.primary,
+                            ),
                           ],
                         ],
                       ),
                       if (driver != null)
-                        Text(driver!.carModel,
-                            style: const TextStyle(
-                                fontSize: 12, color: AppTheme.textSecondary)),
+                        Text(
+                          driver!.carModel,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 if (driver != null)
                   Row(
                     children: [
-                      const Icon(Icons.star, size: 13, color: Color(0xFFFFB300)),
+                      const Icon(
+                        Icons.star,
+                        size: 13,
+                        color: Color(0xFFFFB300),
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         driver!.driverRating.toStringAsFixed(1),
                         style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                     ],
                   ),

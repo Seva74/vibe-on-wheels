@@ -1,4 +1,3 @@
-
 import '../domain/entities/driver.dart';
 import '../domain/entities/passenger.dart';
 import '../domain/entities/trip.dart';
@@ -90,14 +89,13 @@ List<Trip> generateMockTrips({
   required String to,
   DateTime? date,
 }) {
-  final referenceDay = date == null
-      ? DateTime.now()
-      : DateTime(date.year, date.month, date.day);
+  final sourceDate = date ?? DateTime.now();
   final baseDeparture = DateTime(
-    referenceDay.year,
-    referenceDay.month,
-    referenceDay.day,
-    8,
+    sourceDate.year,
+    sourceDate.month,
+    sourceDate.day,
+    sourceDate.hour,
+    sourceDate.minute,
   );
 
   return [

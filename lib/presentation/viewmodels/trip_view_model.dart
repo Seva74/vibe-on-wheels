@@ -19,9 +19,9 @@ class TripViewModel extends ChangeNotifier {
     required SearchTripsUseCase searchUseCase,
     required JoinTripUseCase joinUseCase,
     required ITripRepository tripRepository,
-  })  : _searchUseCase = searchUseCase,
-        _joinUseCase = joinUseCase,
-        _tripRepository = tripRepository;
+  }) : _searchUseCase = searchUseCase,
+       _joinUseCase = joinUseCase,
+       _tripRepository = tripRepository;
 
   ViewState _searchState = ViewState.idle;
   List<Trip> _trips = [];
@@ -30,7 +30,8 @@ class TripViewModel extends ChangeNotifier {
   ViewState _bookingState = ViewState.idle;
   String _bookingError = '';
 
-  BookingConfirmationStatus _confirmationStatus = BookingConfirmationStatus.none;
+  BookingConfirmationStatus _confirmationStatus =
+      BookingConfirmationStatus.none;
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
 
@@ -50,20 +51,24 @@ class TripViewModel extends ChangeNotifier {
   Trip? get confirmedTrip => _confirmedTrip;
   Driver? get confirmedDriver => _confirmedDriver;
 
-  Future<void> fetchTrips({required String from, required String to, DateTime? date}) async {
-    final normalizedFrom = from.trim();
-    final normalizedTo = to.trim();
-    final latinOnly = RegExp(r'^[a-zA-Z\s]+$');
+  Future<void> fetchTrips({
+    required String from,
+    required String to,
+    DateTime? time,
+  }) async {
+    final fromTrimmed = from.trim();
+    final toTrimmed = to.trim();
 
-    if (normalizedFrom.isEmpty || normalizedTo.isEmpty) {
+    if (fromTrimmed.isEmpty || toTrimmed.isEmpty) {
       _searchState = ViewState.error;
-      _searchError = 'Заполните пункты "Откуда" и "Куда".';
+      _searchError = 'Заполните поля "Откуда" и "Куда".';
       _trips = [];
-      _safeNotifyListeners();
+      notifyListeners();
       return;
     }
 
-    if (latinOnly.hasMatch(normalizedFrom) || latinOnly.hasMatch(normalizedTo)) {
+    final latinOnly = RegExp(r'^[a-zA-Z\s]+$');
+    if (latinOnly.hasMatch(fromTrimmed) || latinOnly.hasMatch(toTrimmed)) {
       _searchState = ViewState.error;
       _searchError = 'Пожалуйста, введите название города на русском языке.';
       _trips = [];
@@ -78,9 +83,9 @@ class TripViewModel extends ChangeNotifier {
 
     try {
       _trips = await _searchUseCase.execute(
-        from: normalizedFrom,
-        to: normalizedTo,
-        time: date,
+        from: fromTrimmed,
+        to: toTrimmed,
+        time: time,
       );
       _searchState = ViewState.success;
       unawaited(_prefetchDrivers(_trips.map((trip) => trip.driverId)));
@@ -183,12 +188,5 @@ class TripViewModel extends ChangeNotifier {
   void _safeNotifyListeners() {
     if (_isDisposed) return;
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _isDisposed = true;
-    _confirmationTimer?.cancel();
-    super.dispose();
   }
 }
