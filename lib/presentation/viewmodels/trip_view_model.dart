@@ -17,9 +17,9 @@ class TripViewModel extends ChangeNotifier {
     required SearchTripsUseCase searchUseCase,
     required JoinTripUseCase joinUseCase,
     required ITripRepository tripRepository,
-  })  : _searchUseCase = searchUseCase,
-        _joinUseCase = joinUseCase,
-        _tripRepository = tripRepository;
+  }) : _searchUseCase = searchUseCase,
+       _joinUseCase = joinUseCase,
+       _tripRepository = tripRepository;
 
   ViewState _searchState = ViewState.idle;
   List<Trip> _trips = [];
@@ -28,7 +28,8 @@ class TripViewModel extends ChangeNotifier {
   ViewState _bookingState = ViewState.idle;
   String _bookingError = '';
 
-  BookingConfirmationStatus _confirmationStatus = BookingConfirmationStatus.none;
+  BookingConfirmationStatus _confirmationStatus =
+      BookingConfirmationStatus.none;
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
 
@@ -45,9 +46,24 @@ class TripViewModel extends ChangeNotifier {
   Trip? get confirmedTrip => _confirmedTrip;
   Driver? get confirmedDriver => _confirmedDriver;
 
-  Future<void> fetchTrips({required String from, required String to}) async {
+  Future<void> fetchTrips({
+    required String from,
+    required String to,
+    DateTime? time,
+  }) async {
+    final fromTrimmed = from.trim();
+    final toTrimmed = to.trim();
+
+    if (fromTrimmed.isEmpty || toTrimmed.isEmpty) {
+      _searchState = ViewState.error;
+      _searchError = 'Заполните поля "Откуда" и "Куда".';
+      _trips = [];
+      notifyListeners();
+      return;
+    }
+
     final latinOnly = RegExp(r'^[a-zA-Z\s]+$');
-    if (latinOnly.hasMatch(from.trim()) || latinOnly.hasMatch(to.trim())) {
+    if (latinOnly.hasMatch(fromTrimmed) || latinOnly.hasMatch(toTrimmed)) {
       _searchState = ViewState.error;
       _searchError = 'Пожалуйста, введите название города на русском языке.';
       _trips = [];
@@ -56,11 +72,16 @@ class TripViewModel extends ChangeNotifier {
     }
 
     _searchState = ViewState.loading;
+    _searchError = '';
     _trips = [];
     notifyListeners();
 
     try {
-      _trips = await _searchUseCase.execute(from: from, to: to);
+      _trips = await _searchUseCase.execute(
+        from: fromTrimmed,
+        to: toTrimmed,
+        time: time,
+      );
       _searchState = ViewState.success;
       for (final trip in _trips) {
         _prefetchDriver(trip.driverId);

@@ -32,7 +32,21 @@ class _SearchScreenState extends State<SearchScreen> {
     final now = DateTime.now();
     if (date.day == now.day && date.month == now.month) return 'Сегодня';
     if (date.day == now.day + 1 && date.month == now.month) return 'Завтра';
-    const months = ['', 'янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const months = [
+      '',
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'май',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек',
+    ];
     return '${date.day} ${months[date.month]}';
   }
 
@@ -42,11 +56,7 @@ class _SearchScreenState extends State<SearchScreen> {
       backgroundColor: AppTheme.surface,
       body: SafeArea(
         child: Column(
-          children: [
-            _buildHeader(),
-            _buildSearchPanel(),
-            _buildResultsArea(),
-          ],
+          children: [_buildHeader(), _buildSearchPanel(), _buildResultsArea()],
         ),
       ),
     );
@@ -64,7 +74,11 @@ class _SearchScreenState extends State<SearchScreen> {
               color: AppTheme.primary,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.directions_car, color: Colors.white, size: 22),
+            child: const Icon(
+              Icons.directions_car,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           const Column(
@@ -80,10 +94,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               Text(
                 'Найди попутчика',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                ),
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
               ),
             ],
           ),
@@ -106,12 +117,19 @@ class _SearchScreenState extends State<SearchScreen> {
           // От
           Row(
             children: [
-              const Icon(Icons.radio_button_checked, color: AppTheme.primary, size: 20),
+              const Icon(
+                Icons.radio_button_checked,
+                color: AppTheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
                   controller: _fromController,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Откуда',
                     border: InputBorder.none,
@@ -146,7 +164,10 @@ class _SearchScreenState extends State<SearchScreen> {
               Expanded(
                 child: TextField(
                   controller: _toController,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Куда',
                     border: InputBorder.none,
@@ -167,7 +188,10 @@ class _SearchScreenState extends State<SearchScreen> {
               GestureDetector(
                 onTap: _pickDate,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
@@ -176,7 +200,11 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.calendar_today, size: 16, color: AppTheme.primary),
+                      const Icon(
+                        Icons.calendar_today,
+                        size: 16,
+                        color: AppTheme.primary,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         _formatDate(_selectedDate),
@@ -196,19 +224,30 @@ class _SearchScreenState extends State<SearchScreen> {
                   onPressed: vm.searchState == ViewState.loading
                       ? null
                       : () => vm.fetchTrips(
-                            from: _fromController.text,
-                            to: _toController.text,
+                          from: _fromController.text,
+                          to: _toController.text,
+                          time: DateTime(
+                            _selectedDate.year,
+                            _selectedDate.month,
+                            _selectedDate.day,
                           ),
+                        ),
                   icon: vm.searchState == ViewState.loading
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.search, size: 18),
                   label: const Text('Найти'),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ),
@@ -248,7 +287,11 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.directions_car_outlined, size: 64, color: AppTheme.primaryLight),
+          Icon(
+            Icons.directions_car_outlined,
+            size: 64,
+            color: AppTheme.primaryLight,
+          ),
           const SizedBox(height: 16),
           const Text(
             'Введите маршрут\nи нажмите Найти',
@@ -333,7 +376,11 @@ class _TripCard extends StatelessWidget {
   final Driver? driver;
   final void Function(Trip, Driver?) onTap;
 
-  const _TripCard({required this.trip, required this.driver, required this.onTap});
+  const _TripCard({
+    required this.trip,
+    required this.driver,
+    required this.onTap,
+  });
 
   String _formatTime(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');
@@ -378,7 +425,10 @@ class _TripCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primarySurface,
                     borderRadius: BorderRadius.circular(10),
@@ -398,18 +448,34 @@ class _TripCard extends StatelessWidget {
             // Время отправления
             Row(
               children: [
-                const Icon(Icons.access_time, size: 15, color: AppTheme.textSecondary),
+                const Icon(
+                  Icons.access_time,
+                  size: 15,
+                  color: AppTheme.textSecondary,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   _formatTime(trip.startTime),
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(width: 16),
-                const Icon(Icons.event_seat, size: 15, color: AppTheme.textSecondary),
+                const Icon(
+                  Icons.event_seat,
+                  size: 15,
+                  color: AppTheme.textSecondary,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '$seats ${_seatsLabel(seats)}',
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -448,14 +514,21 @@ class _TripCard extends StatelessWidget {
                           ),
                           if (driver?.isVerified == true) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.verified, size: 14, color: AppTheme.primary),
+                            const Icon(
+                              Icons.verified,
+                              size: 14,
+                              color: AppTheme.primary,
+                            ),
                           ],
                         ],
                       ),
                       if (driver != null)
                         Text(
                           driver!.carModel,
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                     ],
                   ),
@@ -463,7 +536,11 @@ class _TripCard extends StatelessWidget {
                 if (driver != null)
                   Row(
                     children: [
-                      const Icon(Icons.star, size: 14, color: Color(0xFFFFB300)),
+                      const Icon(
+                        Icons.star,
+                        size: 14,
+                        color: Color(0xFFFFB300),
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         driver!.driverRating.toStringAsFixed(1),

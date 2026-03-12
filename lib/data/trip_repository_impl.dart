@@ -14,7 +14,7 @@ class TripRepositoryImpl implements ITripRepository {
   }) async {
     // Имитируем GET /api/trips?from=...&to=...
     await Future.delayed(_networkDelay);
-    return generateMockTrips(from: from, to: to);
+    return generateMockTrips(from: from, to: to, date: time);
   }
 
   @override

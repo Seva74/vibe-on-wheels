@@ -71,13 +71,23 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  // ❌ Убрали const из списка — ProfileScreen использует context.watch
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const TripsScreen(),
-    const MessagesScreen(),
-    ProfileScreen(),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(onOpenTrips: _openTripsTab),
+      const TripsScreen(),
+      const MessagesScreen(),
+      ProfileScreen(),
+    ];
+  }
+
+  void _openTripsTab() {
+    if (!mounted) return;
+    setState(() => _currentIndex = 1);
+  }
 
   @override
   Widget build(BuildContext context) {
