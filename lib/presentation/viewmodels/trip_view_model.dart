@@ -67,15 +67,6 @@ class TripViewModel extends ChangeNotifier {
       return;
     }
 
-    final latinOnly = RegExp(r'^[a-zA-Z\s]+$');
-    if (latinOnly.hasMatch(fromTrimmed) || latinOnly.hasMatch(toTrimmed)) {
-      _searchState = ViewState.error;
-      _searchError = 'Пожалуйста, введите название города на русском языке.';
-      _trips = [];
-      _safeNotifyListeners();
-      return;
-    }
-
     _searchState = ViewState.loading;
     _searchError = '';
     _trips = [];

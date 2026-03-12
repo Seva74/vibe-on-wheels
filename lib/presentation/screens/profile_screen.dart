@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../../domain/entities/passenger.dart';
-import 'notification_settings_screen.dart';
+import 'my_trips_screen.dart';
+import 'my_reviews_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   ProfileScreen({super.key});
@@ -204,27 +206,25 @@ class ProfileScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _menuItem(Icons.directions_car_outlined, 'Мои поездки', '83'),
+          _menuItemNav(context, Icons.directions_car_outlined, 'Мои поездки', const MyTripsScreen(), badge: '83'),
           const Divider(indent: 56, height: 1, color: AppTheme.divider),
-          _menuItem(Icons.star_outline, 'Мои отзывы', '42'),
+          _menuItemNav(context, Icons.star_outline, 'Мои отзывы', const MyReviewsScreen(), badge: '42'),
           const Divider(indent: 56, height: 1, color: AppTheme.divider),
-          _menuItemNav(
-            context,
-            Icons.notifications_outlined,
-            'Уведомления',
-            const NotificationSettingsScreen(),
-          ),
-          const Divider(indent: 56, height: 1, color: AppTheme.divider),
-          _menuItem(Icons.settings_outlined, 'Настройки', null),
+          _menuItemNav(context, Icons.settings_outlined, 'Настройки', const SettingsScreen()),
         ],
       ),
     );
   }
 
-  Widget _menuItem(IconData icon, String title, String? badge) {
+  Widget _menuItemNav(
+      BuildContext context, IconData icon, String title, Widget page,
+      {String? badge}) {
     return ListTile(
+      onTap: () =>
+          Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
       leading: Container(
-        width: 36, height: 36,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: AppTheme.primarySurface,
           borderRadius: BorderRadius.circular(10),
@@ -236,43 +236,27 @@ class ProfileScreen extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (badge != null)
+          if (badge != null) ...[  
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: AppTheme.primarySurface,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(badge,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primary)),
+              child: Text(
+                badge,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primary,
+                ),
+              ),
             ),
-          const SizedBox(width: 4),
+            const SizedBox(width: 4),
+          ],
           const Icon(Icons.chevron_right, color: AppTheme.textHint, size: 20),
         ],
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    );
-  }
-
-  Widget _menuItemNav(
-      BuildContext context, IconData icon, String title, Widget page) {
-    return ListTile(
-      onTap: () => Navigator.push(
-          context, MaterialPageRoute(builder: (_) => page)),
-      leading: Container(
-        width: 36, height: 36,
-        decoration: BoxDecoration(
-          color: AppTheme.primarySurface,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 18, color: AppTheme.primary),
-      ),
-      title: Text(title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-      trailing: const Icon(Icons.chevron_right, color: AppTheme.textHint, size: 20),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }

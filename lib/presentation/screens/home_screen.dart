@@ -23,9 +23,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const LatLng _defaultCenter = LatLng(56.4977, 84.9744);
   static const double _wheelZoomStep = 0.4;
+  static const List<String> _paymentOptions = ['Переводом', 'Наличными'];
 
-  bool _onboardingDone = false;
-  int _onboardingStep = 0;
   bool _isGeocoding = false;
 
   final MapController _mapController = MapController();
@@ -48,21 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
   _LocationInput _activeInput = _LocationInput.from;
   _SearchStep _searchStep = _SearchStep.route;
   int _geocodeToken = 0;
-
-  final List<Map<String, String>> _onboardingSteps = [
-    {
-      'text':
-          'В этом разделе вы сможете искать водителей или попутчиков для ваших поездок',
-    },
-    {
-      'text':
-          'В этом разделе вы сможете просматривать поездки и находить рекомендованные вам поездки',
-    },
-    {
-      'text':
-          'В этом разделе вы сможете общаться с попутчиками. Оформите поездку и начните чат!',
-    },
-  ];
 
   _SheetLayout get _sheetLayout {
     switch (_searchStep) {
@@ -235,25 +219,55 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _zoomIn() {
+    final camera = _currentCameraOrNull();
+    if (camera == null) return;
+    _mapController.move(camera.center, camera.clampZoom(camera.zoom + 1.0));
+  }
+
+  void _zoomOut() {
+    final camera = _currentCameraOrNull();
+    if (camera == null) return;
+    _mapController.move(camera.center, camera.clampZoom(camera.zoom - 1.0));
+  }
+
+  MapCamera? _currentCameraOrNull() {
+    try {
+      return _mapController.camera;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
 
-    final camera = _mapController.camera;
-    final delta = event.scrollDelta.dy;
-    if (delta == 0) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (
+      resolvedEvent,
+    ) {
+      final scrollEvent = resolvedEvent as PointerScrollEvent;
+      final camera = _currentCameraOrNull();
+      if (camera == null) return;
 
-    final targetZoom = camera.clampZoom(
-      camera.zoom + (delta < 0 ? _wheelZoomStep : -_wheelZoomStep),
-    );
+      final delta = scrollEvent.scrollDelta.dy;
+      if (delta == 0) return;
 
-    if ((targetZoom - camera.zoom).abs() < 0.001) return;
+      final targetZoom = camera.clampZoom(
+        camera.zoom + (delta < 0 ? _wheelZoomStep : -_wheelZoomStep),
+      );
 
-    final targetCenter = camera.focusedZoomCenter(
-      Point<double>(event.localPosition.dx, event.localPosition.dy),
-      targetZoom,
-    );
+      if ((targetZoom - camera.zoom).abs() < 0.001) return;
 
-    _mapController.move(targetCenter, targetZoom);
+      final targetCenter = camera.focusedZoomCenter(
+        Point<double>(
+          scrollEvent.localPosition.dx,
+          scrollEvent.localPosition.dy,
+        ),
+        targetZoom,
+      );
+
+      _mapController.move(targetCenter, targetZoom);
+    });
   }
 
   Future<void> _goToDetailsStep() async {
@@ -429,25 +443,17 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           Positioned.fill(child: _buildMap()),
-          if (_onboardingDone)
-            DraggableScrollableSheet(
-              key: ValueKey(_searchStep),
-              initialChildSize: sheetLayout.initialSize,
-              minChildSize: sheetLayout.minSize,
-              maxChildSize: sheetLayout.maxSize,
-              snap: true,
-              snapSizes: sheetLayout.snapSizes,
-              builder: (context, scrollController) {
-                return _buildBottomSheet(scrollController);
-              },
-            ),
-          if (!_onboardingDone)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _buildOnboarding(context),
-            ),
+          DraggableScrollableSheet(
+            key: ValueKey(_searchStep),
+            initialChildSize: sheetLayout.initialSize,
+            minChildSize: sheetLayout.minSize,
+            maxChildSize: sheetLayout.maxSize,
+            snap: true,
+            snapSizes: sheetLayout.snapSizes,
+            builder: (context, scrollController) {
+              return _buildBottomSheet(scrollController);
+            },
+          ),
         ],
       ),
     );
@@ -489,6 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Stack(
       children: [
         Listener(
+          behavior: HitTestBehavior.opaque,
           onPointerSignal: _handlePointerSignal,
           child: FlutterMap(
             mapController: _mapController,
@@ -505,8 +512,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.vaibnakolesah.app',
+                urlTemplate:
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.example.vaib_na_kolesah',
               ),
               if (_fromPoint != null && _toPoint != null)
                 PolylineLayer(
@@ -574,102 +583,19 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildOnboarding(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(25),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _onboardingSteps.length,
-              (index) => AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: index == _onboardingStep ? 20 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: index == _onboardingStep
-                      ? AppTheme.primary
-                      : AppTheme.divider,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _onboardingSteps[_onboardingStep]['text']!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 15,
-              color: AppTheme.textPrimary,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
+        Positioned(
+          right: 14,
+          top: 120,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => setState(() => _onboardingDone = true),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primary,
-                    side: const BorderSide(color: AppTheme.accent),
-                    backgroundColor: AppTheme.primarySurface,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Пропустить',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_onboardingStep < _onboardingSteps.length - 1) {
-                      setState(() => _onboardingStep++);
-                    } else {
-                      setState(() => _onboardingDone = true);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text(
-                    _onboardingStep < _onboardingSteps.length - 1
-                        ? 'Далее'
-                        : 'Начать',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
+              _ZoomButton(icon: Icons.add, onPressed: _zoomIn),
+              const SizedBox(height: 6),
+              _ZoomButton(icon: Icons.remove, onPressed: _zoomOut),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -773,10 +699,15 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           children: [
             Expanded(
-              child: _TextInputField(
+              child: _PaymentSelector(
                 label: 'Оплата',
-                hint: 'Наличные/перевод',
-                controller: _paymentController,
+                value: _paymentController.text,
+                options: _paymentOptions,
+                onChanged: (value) {
+                  setState(() {
+                    _paymentController.text = value;
+                  });
+                },
                 icon: Icons.payments_outlined,
               ),
             ),
@@ -1024,7 +955,9 @@ class _RouteInputRow extends StatelessWidget {
             onTap: onTap,
             onEditingComplete: onSubmit,
             onSubmitted: (_) => onSubmit(),
+            keyboardType: TextInputType.streetAddress,
             textInputAction: TextInputAction.search,
+            textCapitalization: TextCapitalization.words,
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -1151,6 +1084,110 @@ class _TextInputField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PaymentSelector extends StatelessWidget {
+  final String label;
+  final String value;
+  final List<String> options;
+  final IconData icon;
+  final ValueChanged<String> onChanged;
+
+  const _PaymentSelector({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.icon,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppTheme.textHint,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceVariant,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(icon, color: AppTheme.textHint, size: 18),
+              ),
+              Expanded(
+                child: Row(
+                  children: options
+                      .map(
+                        (option) => Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: _PaymentOptionChip(
+                              label: option,
+                              selected: option == value,
+                              onTap: () => onChanged(option),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentOptionChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaymentOptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppTheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : AppTheme.textSecondary,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1347,6 +1384,30 @@ class _MapPointMarker extends StatelessWidget {
   }
 }
 
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _ZoomButton({required this.icon, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withAlpha(230),
+      borderRadius: BorderRadius.circular(10),
+      elevation: 2,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: AppTheme.primary),
+        ),
+      ),
+    );
+  }
+}
+
 enum _LocationInput { from, to }
 
 enum _SearchStep { route, details }
@@ -1362,14 +1423,35 @@ class _NominatimApi {
   static const String _baseUrl = 'nominatim.openstreetmap.org';
 
   static Future<_GeocodedPoint?> search(String query) async {
-    final uri = Uri.https(_baseUrl, '/search', {
-      'q': query,
-      'format': 'json',
-      'limit': '1',
-      'accept-language': 'ru',
-    });
+    final normalized = _normalizeQuery(query);
+    if (normalized.isEmpty) return null;
 
-    final data = await _getJsonList(uri);
+    final attempts = <String>[normalized, '$normalized, Россия'];
+
+    for (final attempt in attempts) {
+      final uri = Uri.https(_baseUrl, '/search', {
+        'q': attempt,
+        'format': 'json',
+        'limit': '1',
+        'accept-language': 'ru',
+      });
+
+      final data = await _getJsonList(uri);
+      final point = _firstPointFromResult(data, attempt);
+      if (point != null) return point;
+    }
+
+    return null;
+  }
+
+  static String _normalizeQuery(String query) {
+    return query.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  static _GeocodedPoint? _firstPointFromResult(
+    List<dynamic>? data,
+    String fallbackLabel,
+  ) {
     if (data == null || data.isEmpty) return null;
 
     final first = data.first;
@@ -1379,7 +1461,7 @@ class _NominatimApi {
     final lon = double.tryParse('${first['lon']}');
     if (lat == null || lon == null) return null;
 
-    final label = (first['display_name'] as String?) ?? query;
+    final label = (first['display_name'] as String?) ?? fallbackLabel;
     return _GeocodedPoint(point: LatLng(lat, lon), label: label);
   }
 
