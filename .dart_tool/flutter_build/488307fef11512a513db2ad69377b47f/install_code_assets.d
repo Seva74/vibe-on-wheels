@@ -1,1 +1,0 @@
- C:\\Seva\\GitHub\\vibe-on-wheels\\.dart_tool\\flutter_build\\488307fef11512a513db2ad69377b47f\\native_assets.json: 
