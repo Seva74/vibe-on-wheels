@@ -19,20 +19,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const LatLng _defaultFromPoint = LatLng(56.4977, 84.9744);
-  static const LatLng _defaultToPoint = LatLng(55.0302, 82.9204);
+  static const LatLng _defaultCenter = LatLng(56.4977, 84.9744);
 
   bool _onboardingDone = false;
   int _onboardingStep = 0;
   bool _isGeocoding = false;
 
   final MapController _mapController = MapController();
-  final TextEditingController _fromController = TextEditingController(
-    text: 'Томск',
-  );
-  final TextEditingController _toController = TextEditingController(
-    text: 'Новосибирск',
-  );
+  final TextEditingController _fromController = TextEditingController();
+  final TextEditingController _toController = TextEditingController();
   final TextEditingController _paymentController = TextEditingController(
     text: 'Наличными',
   );
@@ -44,12 +39,13 @@ class _HomeScreenState extends State<HomeScreen> {
   TimeOfDay _selectedTime = const TimeOfDay(hour: 9, minute: 0);
   int _requestedSeats = 1;
 
-  LatLng? _fromPoint = _defaultFromPoint;
-  LatLng? _toPoint = _defaultToPoint;
+  LatLng? _fromPoint;
+  LatLng? _toPoint;
 
   _LocationInput _activeInput = _LocationInput.from;
+  _SearchStep _searchStep = _SearchStep.route;
   String _mapHint =
-      'Выберите поле Откуда/Куда и укажите адрес вручную или тапом по карте.';
+      'Укажите точку отправления и назначения: вручную или тапом по карте.';
   int _geocodeToken = 0;
 
   final List<Map<String, String>> _onboardingSteps = [
@@ -144,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _searchAddressFor(_LocationInput input) async {
+  Future<bool> _searchAddressFor(_LocationInput input) async {
     final controller = input == _LocationInput.from
         ? _fromController
         : _toController;
@@ -152,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (rawQuery.isEmpty) {
       _showSnackBar('Введите адрес для ${_locationLabel(input).toLowerCase()}');
-      return;
+      return false;
     }
 
     _setActiveInput(input);
@@ -165,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _formatCoordinates(coordinatePoint),
       );
       _mapController.move(coordinatePoint, 13.5);
-      return;
+      return true;
     }
 
     final requestId = ++_geocodeToken;
@@ -175,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     final result = await _NominatimApi.search(rawQuery);
-    if (!mounted || requestId != _geocodeToken) return;
+    if (!mounted || requestId != _geocodeToken) return false;
 
     if (result == null) {
       setState(() {
@@ -184,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
             'Не удалось найти адрес "$rawQuery". Уточните адрес или выберите точку на карте.';
       });
       _showSnackBar('Адрес не найден');
-      return;
+      return false;
     }
 
     setState(() {
@@ -193,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _setLocationValue(input, result.point, result.label);
     _mapController.move(result.point, 13.5);
+    return true;
   }
 
   Future<void> _onMapTap(LatLng point) async {
@@ -224,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _submitSearch() async {
+  Future<void> _goToDetailsStep() async {
     FocusScope.of(context).unfocus();
 
     final from = _fromController.text.trim();
@@ -235,18 +232,32 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    await _searchAddressFor(_LocationInput.from);
-    if (!mounted) return;
+    final fromOk = await _searchAddressFor(_LocationInput.from);
+    if (!mounted || !fromOk) return;
 
-    await _searchAddressFor(_LocationInput.to);
-    if (!mounted) return;
+    final toOk = await _searchAddressFor(_LocationInput.to);
+    if (!mounted || !toOk) return;
+
+    setState(() {
+      _searchStep = _SearchStep.details;
+      _mapHint = 'Маршрут сохранен. Теперь укажите детали поездки.';
+    });
+  }
+
+  Future<void> _submitSearch() async {
+    FocusScope.of(context).unfocus();
+
+    final from = _fromController.text.trim();
+    final to = _toController.text.trim();
+
+    if (from.isEmpty || to.isEmpty) {
+      _showSnackBar('Заполните поля Откуда и Куда');
+      setState(() => _searchStep = _SearchStep.route);
+      return;
+    }
 
     final vm = context.read<TripViewModel>();
-    await vm.fetchTrips(
-      from: _fromController.text.trim(),
-      to: _toController.text.trim(),
-      time: _selectedDateTime,
-    );
+    await vm.fetchTrips(from: from, to: to, time: _selectedDateTime);
 
     if (!mounted) return;
 
@@ -271,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _toController.text = fromText;
       _fromPoint = toPoint;
       _toPoint = fromPoint;
-      _mapHint = 'Точки отправления и назначения поменяны местами.';
+      _mapHint = 'Откуда и Куда поменялись местами.';
     });
 
     if (_fromPoint != null) {
@@ -386,7 +397,6 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           Positioned.fill(child: _buildMap()),
-
           if (_onboardingDone)
             Positioned(
               bottom: 0,
@@ -400,7 +410,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _buildSearchForm(context),
               ),
             ),
-
           if (!_onboardingDone)
             Positioned(
               bottom: 0,
@@ -422,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> {
           point: _fromPoint!,
           width: 44,
           height: 44,
-          child: _MapPointMarker(
+          child: const _MapPointMarker(
             color: AppTheme.primary,
             icon: Icons.play_arrow_rounded,
             tooltip: 'Отправление',
@@ -437,7 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
           point: _toPoint!,
           width: 44,
           height: 44,
-          child: _MapPointMarker(
+          child: const _MapPointMarker(
             color: AppTheme.success,
             icon: Icons.flag,
             tooltip: 'Назначение',
@@ -451,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
         FlutterMap(
           mapController: _mapController,
           options: MapOptions(
-            initialCenter: _fromPoint ?? _defaultFromPoint,
+            initialCenter: _defaultCenter,
             initialZoom: 10.8,
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -498,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Тап на карту заполнит: ${_locationLabel(_activeInput)}',
+                    'Тап по карте заполнит: ${_locationLabel(_activeInput)}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -538,7 +547,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Индикатор шагов
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
@@ -617,10 +625,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchForm(BuildContext context) {
-    final canScrollHeight = MediaQuery.of(context).size.height * 0.63;
+    final maxHeight = _searchStep == _SearchStep.route
+        ? MediaQuery.of(context).size.height * 0.42
+        : MediaQuery.of(context).size.height * 0.62;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -633,177 +643,239 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: canScrollHeight),
+        constraints: BoxConstraints(maxHeight: maxHeight),
         child: SingleChildScrollView(
           physics: const ClampingScrollPhysics(),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: _searchStep == _SearchStep.route
+              ? _buildRouteStep()
+              : _buildDetailsStep(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRouteStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        const _StepHeader(title: 'Шаг 1 из 2', subtitle: 'Маршрут поездки'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: ChoiceChip(
+                label: const Text('Карта -> Откуда'),
+                selected: _activeInput == _LocationInput.from,
+                onSelected: (_) =>
+                    _setActiveInput(_LocationInput.from, requestFocus: true),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ChoiceChip(
+                label: const Text('Карта -> Куда'),
+                selected: _activeInput == _LocationInput.to,
+                onSelected: (_) =>
+                    _setActiveInput(_LocationInput.to, requestFocus: true),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _MapHintBar(hint: _mapHint, loading: _isGeocoding),
+        const SizedBox(height: 10),
+        _LocationField(
+          label: 'Откуда',
+          hint: 'Введите место отправления',
+          controller: _fromController,
+          focusNode: _fromFocusNode,
+          active: _activeInput == _LocationInput.from,
+          icon: Icons.radio_button_checked,
+          onTap: () => _setActiveInput(_LocationInput.from),
+          onSubmit: () => _searchAddressFor(_LocationInput.from),
+        ),
+        Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceVariant,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.divider),
+            ),
+            child: IconButton(
+              onPressed: _swapLocations,
+              icon: const Icon(Icons.swap_vert, size: 17),
+              color: AppTheme.primary,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+              padding: EdgeInsets.zero,
+              splashRadius: 18,
+              tooltip: 'Поменять местами',
+            ),
+          ),
+        ),
+        _LocationField(
+          label: 'Куда',
+          hint: 'Введите место назначения',
+          controller: _toController,
+          focusNode: _toFocusNode,
+          active: _activeInput == _LocationInput.to,
+          icon: Icons.location_on,
+          onTap: () => _setActiveInput(_LocationInput.to),
+          onSubmit: () => _searchAddressFor(_LocationInput.to),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isGeocoding ? null : _goToDetailsStep,
+            icon: const Icon(Icons.arrow_forward, size: 18),
+            label: const Text('Далее'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 13),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailsStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        const _StepHeader(title: 'Шаг 2 из 2', subtitle: 'Параметры поездки'),
+        const SizedBox(height: 10),
+        _RouteSummaryCard(
+          from: _fromController.text.trim(),
+          to: _toController.text.trim(),
+          onEdit: () => setState(() => _searchStep = _SearchStep.route),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _TextInputField(
+                label: 'Оплата',
+                hint: 'Наличные/перевод',
+                controller: _paymentController,
+                icon: Icons.payments_outlined,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _SeatsSelector(
+                seats: _requestedSeats,
+                onAdd: () {
+                  if (_requestedSeats >= 6) return;
+                  setState(() => _requestedSeats++);
+                },
+                onRemove: () {
+                  if (_requestedSeats <= 1) return;
+                  setState(() => _requestedSeats--);
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _SelectionButton(
+                label: 'Дата',
+                value: _formatDate(_selectedDate),
+                icon: Icons.calendar_today,
+                onTap: _pickDate,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _SelectionButton(
+                label: 'Время',
+                value: _formatTime(_selectedTime),
+                icon: Icons.access_time,
+                onTap: _pickTime,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _TextInputField(
+          label: 'Комментарий',
+          hint: 'Например: багажа 2 сумки',
+          controller: _notesController,
+          icon: Icons.comment_outlined,
+        ),
+        const SizedBox(height: 14),
+        Consumer<TripViewModel>(
+          builder: (context, vm, _) => Row(
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.divider,
-                    borderRadius: BorderRadius.circular(2),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      setState(() => _searchStep = _SearchStep.route),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Назад'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    side: const BorderSide(color: AppTheme.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Text('Карта -> Откуда'),
-                      selected: _activeInput == _LocationInput.from,
-                      onSelected: (_) => _setActiveInput(
-                        _LocationInput.from,
-                        requestFocus: true,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Text('Карта -> Куда'),
-                      selected: _activeInput == _LocationInput.to,
-                      onSelected: (_) => _setActiveInput(
-                        _LocationInput.to,
-                        requestFocus: true,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _MapHintBar(hint: _mapHint, loading: _isGeocoding),
-              const SizedBox(height: 10),
-              _LocationField(
-                label: 'Откуда',
-                hint: 'Введите место отправления',
-                controller: _fromController,
-                focusNode: _fromFocusNode,
-                active: _activeInput == _LocationInput.from,
-                icon: Icons.radio_button_checked,
-                onTap: () => _setActiveInput(_LocationInput.from),
-                onSubmit: () => _searchAddressFor(_LocationInput.from),
-              ),
-              const SizedBox(height: 10),
-              _LocationField(
-                label: 'Куда',
-                hint: 'Введите место назначения',
-                controller: _toController,
-                focusNode: _toFocusNode,
-                active: _activeInput == _LocationInput.to,
-                icon: Icons.location_on,
-                onTap: () => _setActiveInput(_LocationInput.to),
-                onSubmit: () => _searchAddressFor(_LocationInput.to),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _TextInputField(
-                      label: 'Оплата',
-                      hint: 'Наличные/перевод',
-                      controller: _paymentController,
-                      icon: Icons.payments_outlined,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SeatsSelector(
-                      seats: _requestedSeats,
-                      onAdd: () {
-                        if (_requestedSeats >= 6) return;
-                        setState(() => _requestedSeats++);
-                      },
-                      onRemove: () {
-                        if (_requestedSeats <= 1) return;
-                        setState(() => _requestedSeats--);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SelectionButton(
-                      label: 'Дата',
-                      value: _formatDate(_selectedDate),
-                      icon: Icons.calendar_today,
-                      onTap: _pickDate,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SelectionButton(
-                      label: 'Время',
-                      value: _formatTime(_selectedTime),
-                      icon: Icons.access_time,
-                      onTap: _pickTime,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _TextInputField(
-                label: 'Комментарий',
-                hint: 'Например: багажа 2 сумки',
-                controller: _notesController,
-                icon: Icons.comment_outlined,
-              ),
-              const SizedBox(height: 16),
-              Consumer<TripViewModel>(
-                builder: (context, vm, _) => Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed:
-                            vm.searchState == ViewState.loading || _isGeocoding
-                            ? null
-                            : _submitSearch,
-                        icon: vm.searchState == ViewState.loading
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.search, size: 18),
-                        label: const Text('Найти поездки'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _swapLocations,
-                        icon: const Icon(Icons.swap_vert, size: 18),
-                        label: const Text('Поменять'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.primary,
-                          side: const BorderSide(color: AppTheme.primary),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: vm.searchState == ViewState.loading || _isGeocoding
+                      ? null
+                      : _submitSearch,
+                  icon: vm.searchState == ViewState.loading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        ),
-                      ),
-                    ),
-                  ],
+                        )
+                      : const Icon(Icons.search, size: 18),
+                  label: const Text('Найти поездки'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -816,7 +888,7 @@ class _LocationField extends StatelessWidget {
   final bool active;
   final IconData icon;
   final VoidCallback onTap;
-  final VoidCallback onSubmit;
+  final Future<bool> Function() onSubmit;
 
   const _LocationField({
     required this.label,
@@ -887,6 +959,97 @@ class _LocationField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _StepHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _StepHeader({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppTheme.primarySurface,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: const Icon(Icons.route, size: 18, color: AppTheme.primary),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RouteSummaryCard extends StatelessWidget {
+  final String from;
+  final String to;
+  final VoidCallback onEdit;
+
+  const _RouteSummaryCard({
+    required this.from,
+    required this.to,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.primarySurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.accent),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.alt_route, color: AppTheme.primary, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${from.isEmpty ? 'Не указано' : from} -> ${to.isEmpty ? 'Не указано' : to}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onEdit, child: const Text('Изменить')),
+        ],
+      ),
     );
   }
 }
@@ -1145,6 +1308,8 @@ class _MapPointMarker extends StatelessWidget {
 }
 
 enum _LocationInput { from, to }
+
+enum _SearchStep { route, details }
 
 class _GeocodedPoint {
   final LatLng point;

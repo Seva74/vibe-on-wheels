@@ -1,0 +1,40 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+.github/
+
+# IDE and local settings
+.idea/
+.vscode/
+*.iml
+
+# Flutter / Dart caches and artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+.pub-cache/
+.packages
+build/
+coverage/
+
+# Platform-specific build artifacts
+android/.gradle/
+android/app/build/
+ios/Flutter/ephemeral/
+ios/Pods/
+ios/build/
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/build/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# Logs and environment files
+*.log
+.env
+.env.*
+
+# Test and generated docs
+**/doc/api/
