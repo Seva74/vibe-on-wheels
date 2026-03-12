@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../../domain/entities/trip.dart';
 import '../../domain/entities/driver.dart';
@@ -34,6 +36,9 @@ class TripViewModel extends ChangeNotifier {
   Driver? _confirmedDriver;
 
   final Map<String, Driver> _driversCache = {};
+  final Set<String> _driverFetchInProgress = {};
+  Timer? _confirmationTimer;
+  bool _isDisposed = false;
 
   ViewState get searchState => _searchState;
   List<Trip> get trips => _trips;
@@ -65,7 +70,7 @@ class TripViewModel extends ChangeNotifier {
     _searchState = ViewState.loading;
     _searchError = '';
     _trips = [];
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       _trips = await _searchUseCase.execute(
@@ -74,22 +79,45 @@ class TripViewModel extends ChangeNotifier {
         time: time,
       );
       _searchState = ViewState.success;
-      for (final trip in _trips) {
-        _prefetchDriver(trip.driverId);
-      }
+      unawaited(_prefetchDrivers(_trips.map((trip) => trip.driverId)));
     } catch (e) {
       _searchState = ViewState.error;
       _searchError = 'Произошла ошибка. Попробуйте ещё раз.';
     }
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
-  void _prefetchDriver(String driverId) async {
-    if (_driversCache.containsKey(driverId)) return;
-    final driver = await _tripRepository.getDriverById(driverId);
-    if (driver != null) {
-      _driversCache[driverId] = driver;
-      notifyListeners();
+  Future<void> _prefetchDrivers(Iterable<String> driverIds) async {
+    final idsToFetch = driverIds
+        .toSet()
+        .where(
+          (driverId) =>
+              !_driversCache.containsKey(driverId) &&
+              !_driverFetchInProgress.contains(driverId),
+        )
+        .toList();
+
+    if (idsToFetch.isEmpty) return;
+
+    _driverFetchInProgress.addAll(idsToFetch);
+
+    try {
+      final drivers = await Future.wait(idsToFetch.map(_tripRepository.getDriverById));
+
+      var cacheUpdated = false;
+      for (var i = 0; i < idsToFetch.length; i++) {
+        final driver = drivers[i];
+        if (driver != null) {
+          _driversCache[idsToFetch[i]] = driver;
+          cacheUpdated = true;
+        }
+      }
+
+      if (cacheUpdated) {
+        _safeNotifyListeners();
+      }
+    } finally {
+      _driverFetchInProgress.removeAll(idsToFetch);
     }
   }
 
@@ -97,7 +125,8 @@ class TripViewModel extends ChangeNotifier {
 
   Future<bool> handleJoinRequest(Trip trip) async {
     _bookingState = ViewState.loading;
-    notifyListeners();
+    _bookingError = '';
+    _safeNotifyListeners();
 
     try {
       final result = await _joinUseCase.execute(
@@ -108,7 +137,7 @@ class TripViewModel extends ChangeNotifier {
       if (!result) {
         _bookingState = ViewState.error;
         _bookingError = 'Не удалось забронировать поездку.';
-        notifyListeners();
+        _safeNotifyListeners();
         return false;
       }
 
@@ -116,28 +145,39 @@ class TripViewModel extends ChangeNotifier {
       _confirmationStatus = BookingConfirmationStatus.booked;
       _confirmedTrip = trip;
       _confirmedDriver = _driversCache[trip.driverId];
-      notifyListeners();
+      _safeNotifyListeners();
 
-      Future.delayed(const Duration(seconds: 3), () {
+      _confirmationTimer?.cancel();
+      _confirmationTimer = Timer(const Duration(seconds: 3), () {
+        if (_confirmationStatus != BookingConfirmationStatus.booked ||
+            _confirmedTrip?.tripId != trip.tripId) {
+          return;
+        }
         _confirmationStatus = BookingConfirmationStatus.driverAccepted;
-        notifyListeners();
+        _safeNotifyListeners();
       });
 
       return true;
     } catch (e) {
       _bookingState = ViewState.error;
       _bookingError = 'Ошибка подключения. Попробуйте позже.';
-      notifyListeners();
+      _safeNotifyListeners();
       return false;
     }
   }
 
   void resetBookingState() {
+    _confirmationTimer?.cancel();
     _bookingState = ViewState.idle;
     _bookingError = '';
     _confirmationStatus = BookingConfirmationStatus.none;
     _confirmedTrip = null;
     _confirmedDriver = null;
+    _safeNotifyListeners();
+  }
+
+  void _safeNotifyListeners() {
+    if (_isDisposed) return;
     notifyListeners();
   }
 }

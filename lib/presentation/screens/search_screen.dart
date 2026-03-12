@@ -51,6 +51,13 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   @override
+  void dispose() {
+    _fromController.dispose();
+    _toController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -348,22 +355,27 @@ class _SearchScreenState extends State<SearchScreen> {
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             itemCount: vm.trips.length,
-            itemBuilder: (context, i) => _TripCard(
-              trip: vm.trips[i],
-              driver: vm.getDriverForTrip(vm.trips[i].driverId),
-              onTap: (trip, driver) {
-                if (driver == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChangeNotifierProvider.value(
-                      value: vm,
-                      child: TripDetailsScreen(trip: trip, driver: driver),
+            itemBuilder: (context, i) {
+              final trip = vm.trips[i];
+
+              return _TripCard(
+                key: ValueKey(trip.tripId),
+                trip: trip,
+                driver: vm.getDriverForTrip(trip.driverId),
+                onTap: (trip, driver) {
+                  if (driver == null) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider.value(
+                        value: vm,
+                        child: TripDetailsScreen(trip: trip, driver: driver),
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
@@ -402,7 +414,7 @@ class _TripCard extends StatelessWidget {
           border: Border.all(color: AppTheme.divider),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primary.withValues(alpha: 0.05),
+              color: AppTheme.primary.withAlpha(13),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
