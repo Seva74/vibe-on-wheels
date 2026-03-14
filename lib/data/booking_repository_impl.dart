@@ -13,11 +13,12 @@ class BookingRepositoryImpl implements IBookingRepository {
   }) async {
     // Имитируем POST /api/bookings
     await Future.delayed(const Duration(milliseconds: 800));
-    _bookings.add(createMockBooking(
-      tripId: tripId,
-      passengerId: passengerId,
-    ));
-    return true;
+    Booking temp = createMockBooking(tripId: tripId, passengerId: passengerId);
+    if (temp.availableSeats != -1 && (temp.totalSeats != -1)) {
+      _bookings.add(temp);
+      return true;
+    }
+    else {return false;}
   }
 
   @override

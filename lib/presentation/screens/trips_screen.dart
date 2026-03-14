@@ -483,6 +483,7 @@ class _TripCard extends StatelessWidget {
   final void Function(Trip, Driver?) onTap;
 
   const _TripCard({
+    required super.key,
     required this.trip,
     required this.driver,
     required this.onTap,
