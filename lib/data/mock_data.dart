@@ -152,12 +152,23 @@ Booking createMockBooking({
   required String tripId,
   required String passengerId,
 }) {
-  return Booking(
-    bookingId: DateTime.now().millisecondsSinceEpoch.toString(),
-    tripId: tripId,
-    passengerId: passengerId,
-    createdAt: DateTime.now(),
-    totalSeats: 1,
-    availableSeats: 1,
-  );
+    if (mockUsers.values.any((Passenger)=> Passenger.id == passengerId)) { 
+        return Booking(
+            bookingId: DateTime.now().millisecondsSinceEpoch.toString(),
+            tripId: tripId,
+            passengerId: passengerId,
+            createdAt: DateTime.now(),
+            totalSeats: 1,
+            availableSeats: 1,
+        );
+    }
+    else {
+        return Booking(
+            bookingId: DateTime.now().millisecondsSinceEpoch.toString(),
+            tripId: tripId,
+            passengerId: passengerId,
+            createdAt: DateTime.now(),
+            totalSeats: -1,
+            availableSeats: -1,
+        );}
 }

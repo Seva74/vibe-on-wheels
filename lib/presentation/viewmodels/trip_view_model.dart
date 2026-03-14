@@ -38,7 +38,7 @@ class TripViewModel extends ChangeNotifier {
   final Map<String, Driver> _driversCache = {};
   final Set<String> _driverFetchInProgress = {};
   Timer? _confirmationTimer;
-  bool _isDisposed = false;
+  final bool _isDisposed = false;
 
   ViewState get searchState => _searchState;
   List<Trip> get trips => _trips;
