@@ -51,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _geocodeToken = 0;
   bool _isPublishingDriverTrip = false;
 
-  _SheetLayout get _sheetLayout {
+  _SheetLayout _sheetLayoutForHeight(double availableHeight) {
     switch (_searchStep) {
       case _SearchStep.route:
         return const _SheetLayout(
@@ -61,11 +61,28 @@ class _HomeScreenState extends State<HomeScreen> {
           snapSizes: [0.24, 0.38, 0.52],
         );
       case _SearchStep.details:
-        return const _SheetLayout(
-          initialSize: 0.58,
-          minSize: 0.42,
-          maxSize: 0.84,
-          snapSizes: [0.42, 0.58, 0.84],
+        // Поджимаем/расширяем второй шаг в зависимости от доступной высоты.
+        // Так на компактных экранах action-кнопки не уезжают за нижний край.
+        final normalizedHeight = availableHeight <= 0 ? 1.0 : availableHeight;
+        final initialSize =
+            (560 / normalizedHeight).clamp(0.58, 0.66).toDouble();
+        var minSize = (initialSize - 0.16).clamp(0.40, 0.72).toDouble();
+        var maxSize = (initialSize + 0.10).clamp(0.84, 0.96).toDouble();
+
+        if (minSize >= initialSize) {
+          minSize =
+              (initialSize - 0.06).clamp(0.25, initialSize - 0.01).toDouble();
+        }
+        if (maxSize <= initialSize) {
+          maxSize =
+              (initialSize + 0.06).clamp(initialSize + 0.01, 0.98).toDouble();
+        }
+
+        return _SheetLayout(
+          initialSize: initialSize,
+          minSize: minSize,
+          maxSize: maxSize,
+          snapSizes: [minSize, initialSize, maxSize],
         );
     }
   }
@@ -599,26 +616,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sheetLayout = _sheetLayout;
-
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(title: Text(_appBarTitle), centerTitle: true),
-      body: Stack(
-        children: [
-          Positioned.fill(child: _buildMap()),
-          DraggableScrollableSheet(
-            key: ValueKey(_searchStep),
-            initialChildSize: sheetLayout.initialSize,
-            minChildSize: sheetLayout.minSize,
-            maxChildSize: sheetLayout.maxSize,
-            snap: true,
-            snapSizes: sheetLayout.snapSizes,
-            builder: (context, scrollController) {
-              return _buildBottomSheet(scrollController);
-            },
-          ),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final sheetLayout = _sheetLayoutForHeight(constraints.maxHeight);
+
+          return Stack(
+            children: [
+              Positioned.fill(child: _buildMap()),
+              DraggableScrollableSheet(
+                key: ValueKey(_searchStep),
+                initialChildSize: sheetLayout.initialSize,
+                minChildSize: sheetLayout.minSize,
+                maxChildSize: sheetLayout.maxSize,
+                snap: true,
+                snapSizes: sheetLayout.snapSizes,
+                builder: (context, scrollController) {
+                  return _buildBottomSheet(scrollController);
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -764,6 +785,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomSheet(ScrollController scrollController) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -778,13 +801,19 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          controller: scrollController,
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: _searchStep == _SearchStep.route
-              ? _buildRouteStep()
-              : _buildDetailsStep(),
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: _searchStep == _SearchStep.route
+                ? _buildRouteStep()
+                : _buildDetailsStep(),
+          ),
         ),
       ),
     );
