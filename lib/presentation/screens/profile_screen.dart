@@ -1,102 +1,136 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'package:provider/provider.dart';
+
 import '../../domain/entities/passenger.dart';
-import 'my_trips_screen.dart';
+import '../theme/app_theme.dart';
+import '../viewmodels/auth_view_model.dart';
+import '../viewmodels/trip_view_model.dart';
 import 'my_reviews_screen.dart';
+import 'my_trips_screen.dart';
 import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   ProfileScreen({super.key});
 
-  final Passenger _currentUser = Passenger(
-    id: 'p1',
-    name: 'Алексей Смирнов',
-    phone: '79991234567',
-    mail: 'alex.student@tsu.ru',
-    rating: 4.9,
-    registeredAt: DateTime(2024, 3, 10),
-    isStudent: true,
-  );
+  static const String _defaultUserId = 'p1';
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.surface,
-      appBar: AppBar(title: const Text('Профиль')),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildProfileHeader(),
-            _buildStatsRow(),
-            const SizedBox(height: 16),
-            _buildVerificationCard(),
-            const SizedBox(height: 16),
-            _buildMenuItems(context),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+    return Consumer2<AuthViewModel, TripViewModel>(
+      builder: (context, authVm, tripVm, _) {
+        final user = authVm.currentUser;
+        if (user == null) {
+          return const Scaffold(
+            backgroundColor: AppTheme.surface,
+            body: Center(
+              child: Text(
+                'Пользователь не авторизован',
+                style: TextStyle(color: AppTheme.textSecondary),
+              ),
+            ),
+          );
+        }
+
+        final isDefaultUser = user.id == _defaultUserId;
+        final tripsCount =
+            authVm.currentBaseTripsCount + tripVm.myTripsFor(user.id).length;
+        final reviewsCount = authVm.currentReviewsCount;
+        final rating = isDefaultUser ? user.rating : 0.0;
+
+        return Scaffold(
+          backgroundColor: AppTheme.surface,
+          appBar: AppBar(title: const Text('Профиль')),
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildProfileHeader(
+                  user,
+                  rating: rating,
+                  reviewsCount: reviewsCount,
+                ),
+                _buildStatsRow(
+                  tripsCount: tripsCount,
+                  reviewsCount: reviewsCount,
+                  rating: rating,
+                ),
+                const SizedBox(height: 16),
+                _buildVerificationCard(user),
+                const SizedBox(height: 16),
+                _buildMenuItems(
+                  context,
+                  tripsCount: tripsCount,
+                  reviewsCount: reviewsCount,
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _buildProfileHeader(
+    Passenger user, {
+    required double rating,
+    required int reviewsCount,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
       child: Column(
         children: [
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 48,
-                backgroundColor: AppTheme.accent,
-                child: Text(
-                  _currentUser.name.substring(0, 1),
-                  style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primary),
-                ),
+          CircleAvatar(
+            radius: 48,
+            backgroundColor: AppTheme.accent,
+            child: Text(
+              user.name.substring(0, 1),
+              style: const TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.primary,
               ),
-              if (_currentUser.isStudent)
-                Positioned(
-                  bottom: 2, right: 2,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                        color: AppTheme.primary, shape: BoxShape.circle),
-                    child: const Icon(Icons.school, color: Colors.white, size: 14),
-                  ),
-                ),
-            ],
+            ),
           ),
           const SizedBox(height: 14),
-          Text(_currentUser.name,
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary)),
+          Text(
+            user.name,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.star, size: 16, color: Color(0xFFFFB300)),
               const SizedBox(width: 4),
-              Text('${_currentUser.rating} (отзывов 12)',
-                  style: const TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w500)),
+              Text(
+                '${rating.toStringAsFixed(1)} (отзывов $reviewsCount)',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Участник с ${_currentUser.registeredAt.year}',
-              style: const TextStyle(fontSize: 13, color: AppTheme.textHint)),
+          Text(
+            'Участник с ${user.registeredAt.year}',
+            style: const TextStyle(fontSize: 13, color: AppTheme.textHint),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow({
+    required int tripsCount,
+    required int reviewsCount,
+    required double rating,
+  }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -107,11 +141,11 @@ class ProfileScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _statItem('83', 'Поездки'),
+          _statItem('$tripsCount', 'Поездки'),
           _dividerV(),
-          _statItem('42', 'Отзывы'),
+          _statItem('$reviewsCount', 'Отзывы'),
           _dividerV(),
-          _statItem('4.7', 'Рейтинг'),
+          _statItem(rating.toStringAsFixed(1), 'Рейтинг'),
         ],
       ),
     );
@@ -121,23 +155,27 @@ class ProfileScreen extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primary)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.primary,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
         ],
       ),
     );
   }
 
-  Widget _dividerV() =>
-      Container(width: 1, height: 40, color: AppTheme.divider);
+  Widget _dividerV() => Container(width: 1, height: 40, color: AppTheme.divider);
 
-  Widget _buildVerificationCard() {
+  Widget _buildVerificationCard(Passenger user) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -149,20 +187,19 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('ВЕРИФИКАЦИЯ',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textHint,
-                  letterSpacing: 1)),
+          const Text(
+            'ВЕРИФИКАЦИЯ',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textHint,
+              letterSpacing: 1,
+            ),
+          ),
           const SizedBox(height: 12),
-          _verifyRow('Телефон', '+7 999 123-45-67', true),
+          _verifyRow('Телефон', _formatPhone(user.phone), true),
           const SizedBox(height: 8),
-          _verifyRow('Почта', _currentUser.mail, true),
-          if (_currentUser.isStudent) ...[
-            const SizedBox(height: 8),
-            _verifyRow('Студент', 'ТГУ', true),
-          ],
+          _verifyRow('Почта', user.mail, true),
         ],
       ),
     );
@@ -171,32 +208,39 @@ class ProfileScreen extends StatelessWidget {
   Widget _verifyRow(String label, String value, bool verified) {
     return Row(
       children: [
-        Icon(verified ? Icons.verified : Icons.pending,
-            size: 16,
-            color: verified ? AppTheme.success : AppTheme.textHint),
+        Icon(
+          verified ? Icons.verified : Icons.pending,
+          size: 16,
+          color: verified ? AppTheme.success : AppTheme.textHint,
+        ),
         const SizedBox(width: 8),
-        Text(label,
-            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+        ),
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: verified ? AppTheme.success.withAlpha(30) : AppTheme.accent,
-            borderRadius: BorderRadius.circular(8),
-          ),
+        Flexible(
           child: Text(
-            verified ? 'Подтверждено' : 'Ожидание',
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: verified ? AppTheme.success : AppTheme.primary),
+            value,
+            textAlign: TextAlign.end,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMenuItems(BuildContext context) {
+  Widget _buildMenuItems(
+    BuildContext context, {
+    required int tripsCount,
+    required int reviewsCount,
+  }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -206,22 +250,42 @@ class ProfileScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _menuItemNav(context, Icons.directions_car_outlined, 'Мои поездки', const MyTripsScreen(), badge: '83'),
+          _menuItemNav(
+            context,
+            Icons.directions_car_outlined,
+            'Мои поездки',
+            const MyTripsScreen(),
+            badge: '$tripsCount',
+          ),
           const Divider(indent: 56, height: 1, color: AppTheme.divider),
-          _menuItemNav(context, Icons.star_outline, 'Мои отзывы', const MyReviewsScreen(), badge: '42'),
+          _menuItemNav(
+            context,
+            Icons.star_outline,
+            'Мои отзывы',
+            const MyReviewsScreen(),
+            badge: '$reviewsCount',
+          ),
           const Divider(indent: 56, height: 1, color: AppTheme.divider),
-          _menuItemNav(context, Icons.settings_outlined, 'Настройки', const SettingsScreen()),
+          _menuItemNav(
+            context,
+            Icons.settings_outlined,
+            'Настройки',
+            const SettingsScreen(),
+          ),
         ],
       ),
     );
   }
 
   Widget _menuItemNav(
-      BuildContext context, IconData icon, String title, Widget page,
-      {String? badge}) {
+    BuildContext context,
+    IconData icon,
+    String title,
+    Widget page, {
+    String? badge,
+  }) {
     return ListTile(
-      onTap: () =>
-          Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
       leading: Container(
         width: 36,
         height: 36,
@@ -231,12 +295,14 @@ class ProfileScreen extends StatelessWidget {
         ),
         child: Icon(icon, size: 18, color: AppTheme.primary),
       ),
-      title: Text(title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (badge != null) ...[  
+          if (badge != null) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -259,5 +325,17 @@ class ProfileScreen extends StatelessWidget {
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
+  }
+
+  String _formatPhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.length < 11) return phone;
+
+    final country = digits.substring(0, 1);
+    final part1 = digits.substring(1, 4);
+    final part2 = digits.substring(4, 7);
+    final part3 = digits.substring(7, 9);
+    final part4 = digits.substring(9, 11);
+    return '+$country $part1 $part2-$part3-$part4';
   }
 }

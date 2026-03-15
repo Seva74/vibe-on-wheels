@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
+import '../viewmodels/auth_view_model.dart';
 
 class MyReviewsScreen extends StatelessWidget {
   const MyReviewsScreen({super.key});
@@ -38,8 +40,12 @@ class MyReviewsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final incoming = _mockReviews.where((r) => r.isIncoming).toList();
-    final outgoing = _mockReviews.where((r) => !r.isIncoming).toList();
+    final userId = context.select<AuthViewModel, String?>(
+      (vm) => vm.currentUser?.id,
+    );
+    final source = userId == 'p1' ? _mockReviews : <_ReviewRecord>[];
+    final incoming = source.where((r) => r.isIncoming).toList();
+    final outgoing = source.where((r) => !r.isIncoming).toList();
 
     return DefaultTabController(
       length: 2,

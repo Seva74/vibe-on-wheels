@@ -71,15 +71,6 @@ final Map<String, Passenger> mockUsers = {
     registeredAt: DateTime(2024, 3, 10),
     isStudent: true,
   ),
-  '79990000001': Passenger(
-    id: 'p2',
-    name: 'Мария Иванова',
-    phone: '79990000001',
-    mail: 'maria@mail.ru',
-    rating: 4.7,
-    registeredAt: DateTime(2024, 5, 1),
-    isStudent: false,
-  ),
 };
 
 /// Генерация поездок по маршруту

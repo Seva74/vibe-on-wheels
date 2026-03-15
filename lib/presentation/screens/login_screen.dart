@@ -264,201 +264,206 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  bool _isMale = true;
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _phoneController = TextEditingController(text: '+7 ');
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  String _formatPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) return '+7 ';
+
+    final number = digits.startsWith('7') ? digits.substring(1) : digits;
+    final buf = StringBuffer('+7 ');
+
+    for (int i = 0; i < number.length && i < 10; i++) {
+      if (i == 3) buf.write(' ');
+      if (i == 6) buf.write('-');
+      if (i == 8) buf.write('-');
+      buf.write(number[i]);
+    }
+    return buf.toString();
+  }
+
+  void _onPhoneChanged(String value) {
+    final formatted = _formatPhone(value);
+    if (formatted == _phoneController.text) return;
+
+    _phoneController.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  Future<void> _handleRegister(BuildContext context) async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final vm = context.read<AuthViewModel>();
+    final success = await vm.register(
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
+      phone: _phoneController.text,
+    );
+
+    if (!mounted) return;
+    if (!success) return;
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Регистрация',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppTheme.primarySurface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.accent, width: 2),
-                ),
-                child: const Icon(Icons.person_outline,
-                    size: 36, color: AppTheme.primary),
-              ),
-
-              const SizedBox(height: 32),
-
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Введите фамилию',
-                  labelStyle: const TextStyle(color: AppTheme.textHint),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.divider),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.divider),
-                  ),
-                  filled: true,
-                  fillColor: AppTheme.surfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Введите имя',
-                  labelStyle: const TextStyle(color: AppTheme.textHint),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.divider),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.divider),
-                  ),
-                  filled: true,
-                  fillColor: AppTheme.surfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextField(
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Введите возраст',
-                  labelStyle: const TextStyle(color: AppTheme.textHint),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.divider),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppTheme.divider),
-                  ),
-                  filled: true,
-                  fillColor: AppTheme.surfaceVariant,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  _GenderChip(
-                    label: 'Мужской',
-                    selected: _isMale,
-                    onTap: () => setState(() => _isMale = true),
-                  ),
-                  const SizedBox(width: 12),
-                  _GenderChip(
-                    label: 'Женский',
-                    selected: !_isMale,
-                    onTap: () => setState(() => _isMale = false),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                            'Регистрация будет доступна в следующем обновлении'),
-                        backgroundColor: AppTheme.primary,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+      body: Consumer<AuthViewModel>(
+        builder: (context, vm, _) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 40),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Регистрация',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
                     ),
-                  ),
-                  child: const Text(
-                    'Продолжить',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+                    const SizedBox(height: 32),
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primarySurface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppTheme.accent, width: 2),
+                      ),
+                      child: const Icon(Icons.person_outline, size: 36, color: AppTheme.primary),
+                    ),
+                    const SizedBox(height: 28),
+                    TextFormField(
+                      controller: _lastNameController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) =>
+                          (value == null || value.trim().isEmpty) ? 'Введите фамилию' : null,
+                      decoration: _fieldDecoration('Фамилия', Icons.badge_outlined),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _firstNameController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) =>
+                          (value == null || value.trim().isEmpty) ? 'Введите имя' : null,
+                      decoration: _fieldDecoration('Имя', Icons.person_outline),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[\d\+\s\-]')),
+                      ],
+                      onChanged: _onPhoneChanged,
+                      validator: (value) {
+                        final digits = (value ?? '').replaceAll(RegExp(r'[^\d]'), '');
+                        if (digits.length < 11) return 'Введите корректный номер';
+                        return null;
+                      },
+                      decoration: _fieldDecoration('Номер телефона', Icons.phone_outlined),
+                    ),
+                    if (vm.state == AuthState.error) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline, size: 14, color: AppTheme.error),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              vm.errorMessage,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.error,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: vm.state == AuthState.loading
+                            ? null
+                            : () => _handleRegister(context),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        child: vm.state == AuthState.loading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Создать аккаунт',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
-}
 
-class _GenderChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _GenderChip(
-      {required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primarySurface : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppTheme.primary : AppTheme.divider,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (selected) ...[
-              const Icon(Icons.check, size: 14, color: AppTheme.primary),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: selected ? AppTheme.primary : AppTheme.textSecondary,
-              ),
-            ),
-          ],
-        ),
+  InputDecoration _fieldDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppTheme.textHint),
+      prefixIcon: Icon(icon, color: AppTheme.primary, size: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.divider),
       ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.divider),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+      ),
+      filled: true,
+      fillColor: AppTheme.surfaceVariant,
     );
   }
 }

@@ -34,8 +34,8 @@ class TripViewModel extends ChangeNotifier {
       BookingConfirmationStatus.none;
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
-  final List<Trip> _myTrips = [];
-  final List<Driver> _chatDrivers = [];
+  final Map<String, List<Trip>> _myTripsByPassenger = {};
+  final Map<String, List<Driver>> _chatDriversByPassenger = {};
 
   final Map<String, Driver> _driversCache = {};
   final Set<String> _driverFetchInProgress = {};
@@ -52,8 +52,18 @@ class TripViewModel extends ChangeNotifier {
   BookingConfirmationStatus get confirmationStatus => _confirmationStatus;
   Trip? get confirmedTrip => _confirmedTrip;
   Driver? get confirmedDriver => _confirmedDriver;
-  List<Trip> get myTrips => List.unmodifiable(_myTrips);
-  List<Driver> get chatDrivers => List.unmodifiable(_chatDrivers);
+  List<Trip> get myTrips => myTripsFor('p1');
+  List<Driver> get chatDrivers => chatDriversFor('p1');
+
+  List<Trip> myTripsFor(String passengerId) {
+    return List.unmodifiable(_myTripsByPassenger[passengerId] ?? const <Trip>[]);
+  }
+
+  List<Driver> chatDriversFor(String passengerId) {
+    return List.unmodifiable(
+      _chatDriversByPassenger[passengerId] ?? const <Driver>[],
+    );
+  }
 
   Future<void> fetchTrips({
     required String from,
@@ -127,7 +137,11 @@ class TripViewModel extends ChangeNotifier {
 
   Driver? getDriverForTrip(String driverId) => _driversCache[driverId];
 
-  Future<bool> handleJoinRequest(Trip trip, {Driver? driver}) async {
+  Future<bool> handleJoinRequest(
+    Trip trip, {
+    Driver? driver,
+    String passengerId = 'p1',
+  }) async {
     _bookingState = ViewState.loading;
     _bookingError = '';
     _safeNotifyListeners();
@@ -135,7 +149,7 @@ class TripViewModel extends ChangeNotifier {
     try {
       final result = await _joinUseCase.execute(
         tripId: trip.tripId,
-        passengerId: 'p1',
+        passengerId: passengerId,
       );
 
       if (!result) {
@@ -158,10 +172,13 @@ class TripViewModel extends ChangeNotifier {
           return;
         }
         _confirmationStatus = BookingConfirmationStatus.driverAccepted;
-        _addTripToHistoryIfNeeded(trip);
+        _addTripToHistoryIfNeeded(trip, passengerId: passengerId);
         final acceptedDriver = _confirmedDriver;
         if (acceptedDriver != null) {
-          _addDriverToChatsIfNeeded(acceptedDriver);
+          _addDriverToChatsIfNeeded(
+            acceptedDriver,
+            passengerId: passengerId,
+          );
         }
         _safeNotifyListeners();
       });
@@ -190,15 +207,26 @@ class TripViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _addTripToHistoryIfNeeded(Trip trip) {
-    final exists = _myTrips.any((stored) => stored.tripId == trip.tripId);
+  void _addTripToHistoryIfNeeded(
+    Trip trip, {
+    required String passengerId,
+  }) {
+    final trips = _myTripsByPassenger.putIfAbsent(passengerId, () => []);
+    final exists = trips.any((stored) => stored.tripId == trip.tripId);
     if (exists) return;
-    _myTrips.insert(0, trip);
+    trips.insert(0, trip);
   }
 
-  void _addDriverToChatsIfNeeded(Driver driver) {
-    final exists = _chatDrivers.any((stored) => stored.id == driver.id);
+  void _addDriverToChatsIfNeeded(
+    Driver driver, {
+    required String passengerId,
+  }) {
+    final drivers = _chatDriversByPassenger.putIfAbsent(
+      passengerId,
+      () => [],
+    );
+    final exists = drivers.any((stored) => stored.id == driver.id);
     if (exists) return;
-    _chatDrivers.insert(0, driver);
+    drivers.insert(0, driver);
   }
 }

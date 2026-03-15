@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../viewmodels/auth_view_model.dart';
 import '../viewmodels/trip_view_model.dart';
 import '../theme/app_theme.dart';
 import '../../domain/entities/trip.dart';
@@ -264,9 +265,12 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           onPressed: (vm.bookingState == ViewState.loading || alreadyBooked)
               ? null
               : () async {
+                  final passengerId =
+                      context.read<AuthViewModel>().currentUser?.id ?? 'p1';
                   final success = await vm.handleJoinRequest(
                     widget.trip,
                     driver: widget.driver,
+                    passengerId: passengerId,
                   );
                   if (!context.mounted) return;
                   if (success) {
