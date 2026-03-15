@@ -9,8 +9,14 @@ import '../../domain/enums.dart';
 class TripDetailsScreen extends StatefulWidget {
   final Trip trip;
   final Driver driver;
+  final VoidCallback? onOpenMessages;
 
-  const TripDetailsScreen({super.key, required this.trip, required this.driver});
+  const TripDetailsScreen({
+    super.key,
+    required this.trip,
+    required this.driver,
+    this.onOpenMessages,
+  });
 
   @override
   State<TripDetailsScreen> createState() => _TripDetailsScreenState();
@@ -258,7 +264,10 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           onPressed: (vm.bookingState == ViewState.loading || alreadyBooked)
               ? null
               : () async {
-                  final success = await vm.handleJoinRequest(widget.trip);
+                  final success = await vm.handleJoinRequest(
+                    widget.trip,
+                    driver: widget.driver,
+                  );
                   if (!context.mounted) return;
                   if (success) {
                     setState(() => _showBookedBanner = true);
@@ -463,14 +472,29 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                       ],
                     ),
                   ),
-                  // Кнопка звонка (заглушка)
-                  Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primarySurface,
-                      borderRadius: BorderRadius.circular(12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      vm.resetBookingState();
+                      widget.onOpenMessages?.call();
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text(
+                      'Чат',
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    child: const Icon(Icons.phone, color: AppTheme.primary, size: 20),
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: AppTheme.primarySurface,
+                      foregroundColor: AppTheme.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
                   ),
                 ],
               ),

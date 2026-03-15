@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../domain/entities/trip.dart';
-import '../../domain/enums.dart';
-
 import '../theme/app_theme.dart';
 import '../viewmodels/trip_view_model.dart';
 
@@ -12,32 +9,32 @@ class MyTripsScreen extends StatelessWidget {
 
   static final List<_TripRecord> _mockTrips = [
     _TripRecord(
-      from: 'Томск, ул. Ленина',
-      to: 'Новосибирск, Красный пр.',
+      from: 'Томск, ул. Ленина, 24',
+      to: 'Новосибирск, Красный пр., 53',
       date: DateTime(2026, 3, 10, 9, 0),
       price: 800,
       status: _TripStatus.completed,
       driverName: 'Михаил Иванов',
     ),
     _TripRecord(
-      from: 'Томск, пр. Кирова',
-      to: 'Кемерово, ул. Весенняя',
+      from: 'Томск, пр. Кирова, 14',
+      to: 'Кемерово, ул. Весенняя, 18',
       date: DateTime(2026, 3, 5, 13, 30),
       price: 650,
       status: _TripStatus.completed,
       driverName: 'Елена Соколова',
     ),
     _TripRecord(
-      from: 'Томск, ТГУ',
-      to: 'Академгородок, Новосибирск',
+      from: 'Томск, пр. Ленина, 36',
+      to: 'Новосибирск, Академгородок, ул. Терешковой, 12',
       date: DateTime(2026, 2, 28, 8, 0),
       price: 900,
       status: _TripStatus.cancelled,
       driverName: 'Сергей Попов',
     ),
     _TripRecord(
-      from: 'Томск, вокзал',
-      to: 'Северск',
+      from: 'Томск, ул. Транспортная, 1',
+      to: 'Северск, ул. Ленина, 40',
       date: DateTime(2026, 2, 20, 17, 0),
       price: 250,
       status: _TripStatus.completed,
@@ -59,7 +56,7 @@ class MyTripsScreen extends StatelessWidget {
               to: trip.endLocation.address,
               date: trip.startTime,
               price: trip.price.toInt(),
-              status: _statusFromTrip(trip.status),
+              status: _TripStatus.confirmed,
               driverName: driver?.name ?? 'Водитель',
             );
           }).toList();
@@ -69,18 +66,6 @@ class MyTripsScreen extends StatelessWidget {
         },
       ),
     );
-  }
-
-  _TripStatus _statusFromTrip(TripStatus status) {
-    switch (status) {
-      case TripStatus.cancelled:
-        return _TripStatus.cancelled;
-      case TripStatus.arrived:
-        return _TripStatus.completed;
-      case TripStatus.planned:
-      case TripStatus.onWay:
-        return _TripStatus.upcoming;
-    }
   }
 
   Widget _buildEmpty() {
@@ -208,6 +193,7 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
+      _TripStatus.confirmed => ('Подтверждена', AppTheme.primary),
       _TripStatus.completed => ('Завершена', AppTheme.success),
       _TripStatus.cancelled => ('Отменена', AppTheme.error),
       _TripStatus.upcoming => ('Предстоит', AppTheme.primary),
@@ -245,4 +231,4 @@ class _TripRecord {
   });
 }
 
-enum _TripStatus { completed, cancelled, upcoming }
+enum _TripStatus { confirmed, completed, cancelled, upcoming }

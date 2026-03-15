@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' show Point;
+import 'dart:math' show Point, min;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -215,7 +215,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return false;
     }
 
-    _setLocationValue(input, result.point, result.label);
+    final preferredLabel = _preferAddressWithHouseNumber(
+      typedAddress: rawQuery,
+      resolvedAddress: result.label,
+    );
+
+    _setLocationValue(input, result.point, preferredLabel);
     _mapController.move(result.point, 13.5);
     return true;
   }
@@ -397,8 +402,41 @@ class _HomeScreenState extends State<HomeScreen> {
         .where((element) => element.isNotEmpty)
         .toList();
 
-    if (parts.length < 2) return rawAddress.trim();
-    return '${parts[0]}, ${parts[1]}';
+    if (parts.isEmpty) return rawAddress.trim();
+    if (parts.length <= 2) return parts.join(', ');
+
+    final houseIndex = parts.indexWhere(_hasHouseNumber);
+    if (houseIndex != -1) {
+      final start = houseIndex > 0 ? houseIndex - 1 : houseIndex;
+      final end = min(parts.length, houseIndex + 2);
+      return parts.sublist(start, end).join(', ');
+    }
+
+    return parts.take(3).join(', ');
+  }
+
+  String _preferAddressWithHouseNumber({
+    required String typedAddress,
+    required String resolvedAddress,
+  }) {
+    final compactResolved = _compactAddress(resolvedAddress);
+    if (_hasHouseNumber(compactResolved)) {
+      return compactResolved;
+    }
+
+    final compactTyped = _compactAddress(typedAddress);
+    if (_hasHouseNumber(compactTyped)) {
+      return compactTyped;
+    }
+
+    return compactResolved;
+  }
+
+  bool _hasHouseNumber(String value) {
+    final lower = value.toLowerCase();
+    return RegExp(r'\b\d+[а-яa-z]?(?:[/\\-]\d+[а-яa-z]?)?\b').hasMatch(lower) ||
+        lower.contains('дом ') ||
+        lower.contains('д.');
   }
 
   LatLng? _tryParseCoordinates(String input) {
@@ -1459,6 +1497,7 @@ class _NominatimApi {
         'q': attempt,
         'format': 'json',
         'limit': '1',
+        'addressdetails': '1',
         'accept-language': 'ru',
       });
 
@@ -1487,7 +1526,7 @@ class _NominatimApi {
     final lon = double.tryParse('${first['lon']}');
     if (lat == null || lon == null) return null;
 
-    final label = (first['display_name'] as String?) ?? fallbackLabel;
+    final label = _resolveAddressLabel(first, fallbackLabel);
     return _GeocodedPoint(point: LatLng(lat, lon), label: label);
   }
 
@@ -1496,16 +1535,93 @@ class _NominatimApi {
       'lat': point.latitude.toString(),
       'lon': point.longitude.toString(),
       'format': 'json',
+      'addressdetails': '1',
       'accept-language': 'ru',
-      'zoom': '17',
+      'zoom': '18',
     });
 
     final data = await _getJsonMap(uri);
     if (data == null) return null;
 
+    final compact = _buildCompactAddress(data['address']);
+    if (compact != null && compact.trim().isNotEmpty) {
+      return compact;
+    }
+
     final name = data['display_name'];
     if (name is! String || name.trim().isEmpty) return null;
     return name;
+  }
+
+  static String _resolveAddressLabel(
+    Map<String, dynamic> source,
+    String fallbackLabel,
+  ) {
+    final compact = _buildCompactAddress(source['address']);
+    if (compact != null && compact.trim().isNotEmpty) {
+      return compact;
+    }
+
+    final displayName = source['display_name'];
+    if (displayName is String && displayName.trim().isNotEmpty) {
+      return displayName.trim();
+    }
+
+    return fallbackLabel;
+  }
+
+  static String? _buildCompactAddress(dynamic rawAddress) {
+    if (rawAddress is! Map) return null;
+
+    String? read(List<String> keys) {
+      for (final key in keys) {
+        final value = rawAddress[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+      return null;
+    }
+
+    final houseNumber = read(const ['house_number', 'house']);
+    final street = read(const [
+      'road',
+      'pedestrian',
+      'residential',
+      'street',
+      'footway',
+      'path',
+      'cycleway',
+      'living_street',
+    ]);
+    final locality = read(const [
+      'city',
+      'town',
+      'village',
+      'hamlet',
+      'municipality',
+      'county',
+      'state_district',
+    ]);
+
+    if (street == null && houseNumber == null) {
+      return null;
+    }
+
+    final streetWithHouse = switch ((street, houseNumber)) {
+      (String s, String h) => '$s, $h',
+      (String s, null) => s,
+      (null, String h) => 'дом $h',
+      _ => null,
+    };
+
+    if (streetWithHouse == null) return null;
+
+    if (locality != null &&
+        !streetWithHouse.toLowerCase().contains(locality.toLowerCase())) {
+      return '$streetWithHouse, $locality';
+    }
+    return streetWithHouse;
   }
 
   static Future<List<dynamic>?> _getJsonList(Uri uri) async {

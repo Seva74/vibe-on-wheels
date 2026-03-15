@@ -80,7 +80,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     super.initState();
     _screens = [
       HomeScreen(onOpenTrips: _openTripsTab),
-      const TripsScreen(),
+      TripsScreen(onOpenMessages: _openMessagesTab),
       const MessagesScreen(),
       ProfileScreen(),
     ];
@@ -89,6 +89,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void _openTripsTab() {
     if (!mounted) return;
     setState(() => _currentIndex = 1);
+  }
+
+  void _openMessagesTab() {
+    if (!mounted) return;
+    setState(() => _currentIndex = 2);
   }
 
   @override

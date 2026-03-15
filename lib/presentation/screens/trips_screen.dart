@@ -7,15 +7,17 @@ import '../../domain/entities/driver.dart';
 import 'trip_details_screen.dart';
 
 class TripsScreen extends StatefulWidget {
-  const TripsScreen({super.key});
+  final VoidCallback? onOpenMessages;
+
+  const TripsScreen({super.key, this.onOpenMessages});
 
   @override
   State<TripsScreen> createState() => _TripsScreenState();
 }
 
 class _TripsScreenState extends State<TripsScreen> {
-  final _fromController = TextEditingController(text: 'Томск');
-  final _toController = TextEditingController(text: 'Новосибирск');
+  final _fromController = TextEditingController(text: 'Томск, пр. Ленина, 24');
+  final _toController = TextEditingController(text: 'Новосибирск, Красный пр., 53');
   DateTime _selectedDate = DateTime.now();
 
   Future<void> _pickDate() async {
@@ -412,36 +414,13 @@ class _TripsScreenState extends State<TripsScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-          child: Row(
-            children: [
-              Text(
-                'Найдено ${vm.trips.length} поездок',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.primarySurface,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${_fromController.text} → ${_toController.text}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primary,
-                  ),
-                ),
-              ),
-            ],
+          child: Text(
+            'Найдено ${vm.trips.length} поездок',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
           ),
         ),
         Expanded(
@@ -462,7 +441,11 @@ class _TripsScreenState extends State<TripsScreen> {
                     MaterialPageRoute(
                       builder: (_) => ChangeNotifierProvider.value(
                         value: vm,
-                        child: TripDetailsScreen(trip: trip, driver: driver),
+                        child: TripDetailsScreen(
+                          trip: trip,
+                          driver: driver,
+                          onOpenMessages: widget.onOpenMessages,
+                        ),
                       ),
                     ),
                   );

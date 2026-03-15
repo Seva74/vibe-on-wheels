@@ -35,6 +35,7 @@ class TripViewModel extends ChangeNotifier {
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
   final List<Trip> _myTrips = [];
+  final List<Driver> _chatDrivers = [];
 
   final Map<String, Driver> _driversCache = {};
   final Set<String> _driverFetchInProgress = {};
@@ -52,6 +53,7 @@ class TripViewModel extends ChangeNotifier {
   Trip? get confirmedTrip => _confirmedTrip;
   Driver? get confirmedDriver => _confirmedDriver;
   List<Trip> get myTrips => List.unmodifiable(_myTrips);
+  List<Driver> get chatDrivers => List.unmodifiable(_chatDrivers);
 
   Future<void> fetchTrips({
     required String from,
@@ -125,7 +127,7 @@ class TripViewModel extends ChangeNotifier {
 
   Driver? getDriverForTrip(String driverId) => _driversCache[driverId];
 
-  Future<bool> handleJoinRequest(Trip trip) async {
+  Future<bool> handleJoinRequest(Trip trip, {Driver? driver}) async {
     _bookingState = ViewState.loading;
     _bookingError = '';
     _safeNotifyListeners();
@@ -146,7 +148,7 @@ class TripViewModel extends ChangeNotifier {
       _bookingState = ViewState.success;
       _confirmationStatus = BookingConfirmationStatus.booked;
       _confirmedTrip = trip;
-      _confirmedDriver = _driversCache[trip.driverId];
+      _confirmedDriver = driver ?? _driversCache[trip.driverId];
       _safeNotifyListeners();
 
       _confirmationTimer?.cancel();
@@ -155,9 +157,12 @@ class TripViewModel extends ChangeNotifier {
             _confirmedTrip?.tripId != trip.tripId) {
           return;
         }
-        trip.updateStatus(TripStatus.arrived);
         _confirmationStatus = BookingConfirmationStatus.driverAccepted;
         _addTripToHistoryIfNeeded(trip);
+        final acceptedDriver = _confirmedDriver;
+        if (acceptedDriver != null) {
+          _addDriverToChatsIfNeeded(acceptedDriver);
+        }
         _safeNotifyListeners();
       });
 
@@ -189,5 +194,11 @@ class TripViewModel extends ChangeNotifier {
     final exists = _myTrips.any((stored) => stored.tripId == trip.tripId);
     if (exists) return;
     _myTrips.insert(0, trip);
+  }
+
+  void _addDriverToChatsIfNeeded(Driver driver) {
+    final exists = _chatDrivers.any((stored) => stored.id == driver.id);
+    if (exists) return;
+    _chatDrivers.insert(0, driver);
   }
 }
