@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
+import '../viewmodels/auth_view_model.dart';
 import '../viewmodels/trip_view_model.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -46,9 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   _LocationInput _activeInput = _LocationInput.from;
   _SearchStep _searchStep = _SearchStep.route;
+  _UsageScenario _usageScenario = _UsageScenario.passenger;
   int _geocodeToken = 0;
+  bool _isPublishingDriverTrip = false;
 
-  _SheetLayout get _sheetLayout {
+  _SheetLayout _sheetLayoutForHeight(double availableHeight) {
     switch (_searchStep) {
       case _SearchStep.route:
         return const _SheetLayout(
@@ -58,11 +61,28 @@ class _HomeScreenState extends State<HomeScreen> {
           snapSizes: [0.24, 0.38, 0.52],
         );
       case _SearchStep.details:
-        return const _SheetLayout(
-          initialSize: 0.58,
-          minSize: 0.42,
-          maxSize: 0.84,
-          snapSizes: [0.42, 0.58, 0.84],
+        // Поджимаем/расширяем второй шаг в зависимости от доступной высоты.
+        // Так на компактных экранах action-кнопки не уезжают за нижний край.
+        final normalizedHeight = availableHeight <= 0 ? 1.0 : availableHeight;
+        final initialSize =
+            (560 / normalizedHeight).clamp(0.58, 0.66).toDouble();
+        var minSize = (initialSize - 0.16).clamp(0.40, 0.72).toDouble();
+        var maxSize = (initialSize + 0.10).clamp(0.84, 0.96).toDouble();
+
+        if (minSize >= initialSize) {
+          minSize =
+              (initialSize - 0.06).clamp(0.25, initialSize - 0.01).toDouble();
+        }
+        if (maxSize <= initialSize) {
+          maxSize =
+              (initialSize + 0.06).clamp(initialSize + 0.01, 0.98).toDouble();
+        }
+
+        return _SheetLayout(
+          initialSize: initialSize,
+          minSize: minSize,
+          maxSize: maxSize,
+          snapSizes: [minSize, initialSize, maxSize],
         );
     }
   }
@@ -102,6 +122,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedTime.minute,
   );
 
+  bool get _isDriverScenario => _usageScenario == _UsageScenario.driver;
+
+  String get _appBarTitle =>
+      _isDriverScenario ? 'Ищу попутчиков' : 'Найти попутчика';
+
   void _setActiveInput(_LocationInput input, {bool requestFocus = false}) {
     if (_activeInput != input) {
       setState(() {
@@ -121,6 +146,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_searchStep == step) return;
     setState(() {
       _searchStep = step;
+    });
+  }
+
+  void _setUsageScenario(_UsageScenario scenario) {
+    if (_usageScenario == scenario) return;
+    setState(() {
+      _usageScenario = scenario;
     });
   }
 
@@ -345,6 +377,91 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.onOpenTrips?.call();
   }
 
+  Future<void> _submitDriverTrip() async {
+    FocusScope.of(context).unfocus();
+
+    final from = _fromController.text.trim();
+    final to = _toController.text.trim();
+    if (from.isEmpty || to.isEmpty) {
+      _showSnackBar('Заполните поля Откуда и Куда');
+      _setSearchStep(_SearchStep.route);
+      return;
+    }
+
+    final fromFound = await _searchAddressFor(_LocationInput.from);
+    if (!mounted || !fromFound) return;
+
+    final toFound = await _searchAddressFor(_LocationInput.to);
+    if (!mounted || !toFound) return;
+
+    final shouldPublish = await _confirmDriverPublish();
+    if (!mounted || !shouldPublish) return;
+
+    final authVm = context.read<AuthViewModel>();
+    final user = authVm.currentUser;
+    if (user == null) {
+      _showSnackBar('Авторизуйтесь, чтобы создать поездку');
+      return;
+    }
+
+    final vm = context.read<TripViewModel>();
+    setState(() {
+      _isPublishingDriverTrip = true;
+    });
+
+    try {
+      await vm.publishDriverTripOffer(
+        passengerId: user.id,
+        driverName: user.name,
+        driverPhone: user.phone,
+        from: _fromController.text.trim(),
+        to: _toController.text.trim(),
+        startTime: _selectedDateTime,
+        seats: _requestedSeats,
+        fromLat: _fromPoint?.latitude,
+        fromLng: _fromPoint?.longitude,
+        toLat: _toPoint?.latitude,
+        toLng: _toPoint?.longitude,
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isPublishingDriverTrip = false;
+        _searchStep = _SearchStep.route;
+      });
+    }
+
+    _showSnackBar(
+      'Поездка опубликована. Пассажиры смогут отправлять заявки.',
+    );
+  }
+
+  Future<bool> _confirmDriverPublish() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Подтвердить публикацию?'),
+          content: const Text(
+            'В случае отправки заявки любой пользователь сможет подтвердить совместную поездку с вами, после чего вы в течение 1 часа должны принять или отклонить его заявку.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Отклонить'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Подтвердить'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return accepted ?? false;
+  }
+
   void _swapLocations() {
     FocusScope.of(context).unfocus();
 
@@ -499,26 +616,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sheetLayout = _sheetLayout;
-
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(title: const Text('Найти попутчика'), centerTitle: true),
-      body: Stack(
-        children: [
-          Positioned.fill(child: _buildMap()),
-          DraggableScrollableSheet(
-            key: ValueKey(_searchStep),
-            initialChildSize: sheetLayout.initialSize,
-            minChildSize: sheetLayout.minSize,
-            maxChildSize: sheetLayout.maxSize,
-            snap: true,
-            snapSizes: sheetLayout.snapSizes,
-            builder: (context, scrollController) {
-              return _buildBottomSheet(scrollController);
-            },
-          ),
-        ],
+      appBar: AppBar(title: Text(_appBarTitle), centerTitle: true),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final sheetLayout = _sheetLayoutForHeight(constraints.maxHeight);
+
+          return Stack(
+            children: [
+              Positioned.fill(child: _buildMap()),
+              DraggableScrollableSheet(
+                key: ValueKey(_searchStep),
+                initialChildSize: sheetLayout.initialSize,
+                minChildSize: sheetLayout.minSize,
+                maxChildSize: sheetLayout.maxSize,
+                snap: true,
+                snapSizes: sheetLayout.snapSizes,
+                builder: (context, scrollController) {
+                  return _buildBottomSheet(scrollController);
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -664,6 +785,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomSheet(ScrollController scrollController) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -678,13 +801,19 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          controller: scrollController,
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: _searchStep == _SearchStep.route
-              ? _buildRouteStep()
-              : _buildDetailsStep(),
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: _searchStep == _SearchStep.route
+                ? _buildRouteStep()
+                : _buildDetailsStep(),
+          ),
         ),
       ),
     );
@@ -695,6 +824,11 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const _SheetHandle(),
+        const SizedBox(height: 10),
+        _ScenarioSwitch(
+          scenario: _usageScenario,
+          onChanged: _setUsageScenario,
+        ),
         const SizedBox(height: 10),
         const Align(
           alignment: Alignment.centerLeft,
@@ -741,6 +875,11 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const _SheetHandle(),
+        const SizedBox(height: 10),
+        _ScenarioSwitch(
+          scenario: _usageScenario,
+          onChanged: _setUsageScenario,
+        ),
         const SizedBox(height: 10),
         const Align(
           alignment: Alignment.centerLeft,
@@ -822,48 +961,70 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 14),
         Consumer<TripViewModel>(
-          builder: (context, vm, _) => Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _setSearchStep(_SearchStep.route),
-                  icon: const Icon(Icons.arrow_back, size: 16),
-                  label: const Text('Назад'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primary,
-                    side: const BorderSide(color: AppTheme.primary),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+          builder: (context, vm, _) {
+            final isPrimaryActionBusy = _isGeocoding ||
+                (_isDriverScenario
+                    ? _isPublishingDriverTrip
+                    : vm.searchState == ViewState.loading);
+
+            return Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _setSearchStep(_SearchStep.route),
+                    icon: const Icon(Icons.arrow_back, size: 16),
+                    label: const Text('Назад'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primary,
+                      side: const BorderSide(color: AppTheme.primary),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  onPressed: vm.searchState == ViewState.loading || _isGeocoding
-                      ? null
-                      : _submitSearch,
-                  icon: vm.searchState == ViewState.loading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: isPrimaryActionBusy
+                        ? null
+                        : () async {
+                            if (_isDriverScenario) {
+                              await _submitDriverTrip();
+                            } else {
+                              await _submitSearch();
+                            }
+                          },
+                    icon: isPrimaryActionBusy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(
+                            _isDriverScenario
+                                ? Icons.campaign_outlined
+                                : Icons.search,
+                            size: 18,
                           ),
-                        )
-                      : const Icon(Icons.search, size: 18),
-                  label: const Text('Найти поездки'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    label: Text(
+                      _isDriverScenario
+                          ? 'Опубликовать поездку'
+                          : 'Найти поездки',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -1472,9 +1633,104 @@ class _ZoomButton extends StatelessWidget {
   }
 }
 
+class _ScenarioSwitch extends StatelessWidget {
+  final _UsageScenario scenario;
+  final ValueChanged<_UsageScenario> onChanged;
+
+  const _ScenarioSwitch({required this.scenario, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ScenarioOptionChip(
+              label: 'Ищу водителя',
+              icon: Icons.person_search,
+              selected: scenario == _UsageScenario.passenger,
+              onTap: () => onChanged(_UsageScenario.passenger),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _ScenarioOptionChip(
+              label: 'Ищу попутчиков',
+              icon: Icons.group_add_outlined,
+              selected: scenario == _UsageScenario.driver,
+              onTap: () => onChanged(_UsageScenario.driver),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScenarioOptionChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ScenarioOptionChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppTheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? Colors.white : AppTheme.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 enum _LocationInput { from, to }
 
 enum _SearchStep { route, details }
+
+enum _UsageScenario { passenger, driver }
 
 class _GeocodedPoint {
   final LatLng point;

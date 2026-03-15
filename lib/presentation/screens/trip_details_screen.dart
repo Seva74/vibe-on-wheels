@@ -34,6 +34,32 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     return '${days[dt.weekday]}, ${dt.day} ${months[dt.month]} в $h:$m';
   }
 
+  Future<bool> _confirmPassengerBooking() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Подтвердить заявку?'),
+          content: const Text(
+            'В случае отправки заявки водитель в течение часа должен подтвердить ее. О решении водителя мы пришлем уведомление.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Отклонить'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Подтвердить'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return accepted ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<TripViewModel>(
@@ -265,6 +291,9 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           onPressed: (vm.bookingState == ViewState.loading || alreadyBooked)
               ? null
               : () async {
+                final shouldBook = await _confirmPassengerBooking();
+                if (!context.mounted || !shouldBook) return;
+
                   final passengerId =
                       context.read<AuthViewModel>().currentUser?.id ?? 'p1';
                   final success = await vm.handleJoinRequest(

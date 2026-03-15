@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../domain/entities/trip.dart';
 import '../../domain/entities/driver.dart';
+import '../../domain/entities/location.dart';
 import '../../domain/enums.dart';
 import '../../domain/use_cases/search_trips_use_case.dart';
 import '../../domain/use_cases/join_trip_use_case.dart';
@@ -34,6 +35,7 @@ class TripViewModel extends ChangeNotifier {
       BookingConfirmationStatus.none;
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
+  final List<Trip> _publishedTrips = [];
   final Map<String, List<Trip>> _myTripsByPassenger = {};
   final Map<String, List<Driver>> _chatDriversByPassenger = {};
 
@@ -87,11 +89,23 @@ class TripViewModel extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      _trips = await _searchUseCase.execute(
+      final foundTrips = await _searchUseCase.execute(
         from: fromTrimmed,
         to: toTrimmed,
         time: time,
       );
+      final publishedMatches = _publishedTrips
+          .where(
+            (trip) => _matchesSearchFilter(
+              trip,
+              from: fromTrimmed,
+              to: toTrimmed,
+              time: time,
+            ),
+          )
+          .toList();
+
+      _trips = [...publishedMatches, ...foundTrips];
       _searchState = ViewState.success;
       unawaited(_prefetchDrivers(_trips.map((trip) => trip.driverId)));
     } catch (e) {
@@ -136,6 +150,68 @@ class TripViewModel extends ChangeNotifier {
   }
 
   Driver? getDriverForTrip(String driverId) => _driversCache[driverId];
+
+  Future<void> publishDriverTripOffer({
+    required String passengerId,
+    required String driverName,
+    required String driverPhone,
+    required String from,
+    required String to,
+    required DateTime startTime,
+    required int seats,
+    double? fromLat,
+    double? fromLng,
+    double? toLat,
+    double? toLng,
+  }) async {
+    final normalizedPassengerId = passengerId.trim().isEmpty
+        ? 'p1'
+        : passengerId.trim();
+    final driverId = 'user_driver_$normalizedPassengerId';
+
+    final driver = _driversCache.putIfAbsent(
+      driverId,
+      () => Driver(
+        id: driverId,
+        name: driverName.trim().isEmpty ? 'Водитель' : driverName.trim(),
+        phone: driverPhone,
+        mail: '$driverId@vibe.local',
+        rating: 0,
+        driverRating: 0,
+        registeredAt: DateTime.now(),
+        carModel: 'Личный автомобиль',
+        carPlate: 'Не указано',
+        isVerified: false,
+      ),
+    );
+
+    final normalizedSeats = seats.clamp(1, 6).toInt();
+
+    final trip = Trip(
+      tripId: 'ud_${DateTime.now().millisecondsSinceEpoch}',
+      startTime: startTime,
+      price: _estimateDriverTripPrice(normalizedSeats),
+      totalSeats: normalizedSeats,
+      status: TripStatus.planned,
+      startLocation: LocationModel(
+        address: from.trim(),
+        lat: fromLat ?? 56.4977,
+        lng: fromLng ?? 84.9744,
+      ),
+      endLocation: LocationModel(
+        address: to.trim(),
+        lat: toLat ?? 55.0302,
+        lng: toLng ?? 82.9204,
+      ),
+      driverId: driver.id,
+      bookings: const [],
+    );
+
+    _publishedTrips.insert(0, trip);
+    _trips = [trip, ..._trips.where((existing) => existing.tripId != trip.tripId)];
+    _searchState = ViewState.success;
+    _safeNotifyListeners();
+  }
 
   Future<bool> handleJoinRequest(
     Trip trip, {
@@ -228,5 +304,41 @@ class TripViewModel extends ChangeNotifier {
     final exists = drivers.any((stored) => stored.id == driver.id);
     if (exists) return;
     drivers.insert(0, driver);
+  }
+
+  bool _matchesSearchFilter(
+    Trip trip, {
+    required String from,
+    required String to,
+    DateTime? time,
+  }) {
+    final requestedFrom = _normalizeSearchText(from);
+    final requestedTo = _normalizeSearchText(to);
+    final tripFrom = _normalizeSearchText(trip.startLocation.address);
+    final tripTo = _normalizeSearchText(trip.endLocation.address);
+
+    final fromMatches =
+        tripFrom.contains(requestedFrom) || requestedFrom.contains(tripFrom);
+    final toMatches = tripTo.contains(requestedTo) || requestedTo.contains(tripTo);
+    if (!fromMatches || !toMatches) {
+      return false;
+    }
+
+    if (time == null) {
+      return true;
+    }
+
+    return trip.startTime.year == time.year &&
+        trip.startTime.month == time.month &&
+        trip.startTime.day == time.day;
+  }
+
+  String _normalizeSearchText(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  double _estimateDriverTripPrice(int seats) {
+    final normalizedSeats = seats.clamp(1, 6).toInt();
+    return (300 + normalizedSeats * 90).toDouble();
   }
 }
