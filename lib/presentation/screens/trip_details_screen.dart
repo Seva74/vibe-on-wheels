@@ -363,94 +363,72 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                   const Text('МЕСТО ВСТРЕЧИ',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.textHint, letterSpacing: 1)),
                   const SizedBox(height: 14),
-                  // Заглушка карты
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      height: 160,
-                      color: const Color(0xFFE8EDF2),
-                      child: Stack(
-                        children: [
-                          // Сетка — имитация карты
-                          CustomPaint(
-                            size: const Size(double.infinity, 160),
-                            painter: _MockMapPainter(),
-                          ),
-                          // Метка водителя
-                          Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primary,
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(color: AppTheme.primary.withAlpha(80), blurRadius: 8, offset: const Offset(0, 3)),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.directions_car, color: Colors.white, size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(driver.name,
-                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  width: 10, height: 10,
-                                  decoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Метка пользователя
-                          Positioned(
-                            bottom: 30, right: 60,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primarySurface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.accent),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 34,
+                              height: 34,
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: AppTheme.primary, width: 2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppTheme.accent),
                               ),
-                              child: const Icon(Icons.person, color: AppTheme.primary, size: 14),
+                              child: const Icon(Icons.my_location, color: AppTheme.primary, size: 18),
                             ),
-                          ),
-                          // Надпись
-                          Positioned(
-                            bottom: 8, left: 0, right: 0,
-                            child: Center(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withAlpha(220),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text('Макет карты • реальная карта через Google Maps SDK',
-                                    style: TextStyle(fontSize: 9, color: AppTheme.textHint)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Точка отправления',
+                                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    trip.startLocation.address,
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Divider(height: 1, color: AppTheme.divider),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Icon(Icons.schedule, color: AppTheme.textHint, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _formatDateTime(trip.startTime),
+                                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Водитель подъедет к этой точке отправления.',
+                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  Row(children: [
-                    const Icon(Icons.location_on, color: AppTheme.primary, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        trip.startLocation.address,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ]),
                 ],
               ),
             ),
@@ -582,30 +560,4 @@ class _DriverAcceptingBanner extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Художник заглушки карты ───────────────────────────────────────────────────
-class _MockMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFD0DAE4)
-      ..strokeWidth = 1.2;
-
-    // Горизонтальные линии
-    for (double y = 0; y < size.height; y += 28) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-    // Вертикальные линии
-    for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    // Широкие "улицы"
-    final road = Paint()..color = const Color(0xFFC4CDD6)..strokeWidth = 5;
-    canvas.drawLine(const Offset(0, 80), Offset(size.width, 80), road);
-    canvas.drawLine(Offset(size.width / 2, 0), Offset(size.width / 2, size.height), road);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
 }

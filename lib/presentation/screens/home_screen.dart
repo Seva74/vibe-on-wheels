@@ -145,11 +145,37 @@ class _HomeScreenState extends State<HomeScreen> {
       initialTime: _selectedTime,
     );
 
-    if (picked != null) {
-      setState(() {
-        _selectedTime = picked;
-      });
+    if (picked == null) return;
+
+    final now = DateTime.now();
+    final today = DateUtils.dateOnly(now);
+    final selectedDate = DateUtils.dateOnly(_selectedDate);
+
+    if (selectedDate == today) {
+      final nowWithoutSeconds = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        now.hour,
+        now.minute,
+      );
+      final pickedDateTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        picked.hour,
+        picked.minute,
+      );
+
+      if (pickedDateTime.isBefore(nowWithoutSeconds)) {
+        _showSnackBar('Нельзя выбрать прошедшее время для сегодняшней даты');
+        return;
+      }
     }
+
+    setState(() {
+      _selectedTime = picked;
+    });
   }
 
   Future<bool> _searchAddressFor(_LocationInput input) async {

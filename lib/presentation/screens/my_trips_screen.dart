@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../domain/entities/trip.dart';
+import '../../domain/enums.dart';
 
 import '../theme/app_theme.dart';
+import '../viewmodels/trip_view_model.dart';
 
 class MyTripsScreen extends StatelessWidget {
   const MyTripsScreen({super.key});
@@ -45,8 +50,37 @@ class MyTripsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Мои поездки')),
-      body: _mockTrips.isEmpty ? _buildEmpty() : _buildList(),
+      body: Consumer<TripViewModel>(
+        builder: (context, vm, _) {
+          final confirmedTrips = vm.myTrips.map((trip) {
+            final driver = vm.getDriverForTrip(trip.driverId);
+            return _TripRecord(
+              from: trip.startLocation.address,
+              to: trip.endLocation.address,
+              date: trip.startTime,
+              price: trip.price.toInt(),
+              status: _statusFromTrip(trip.status),
+              driverName: driver?.name ?? 'Водитель',
+            );
+          }).toList();
+
+          final trips = [...confirmedTrips, ..._mockTrips];
+          return trips.isEmpty ? _buildEmpty() : _buildList(trips);
+        },
+      ),
     );
+  }
+
+  _TripStatus _statusFromTrip(TripStatus status) {
+    switch (status) {
+      case TripStatus.cancelled:
+        return _TripStatus.cancelled;
+      case TripStatus.arrived:
+        return _TripStatus.completed;
+      case TripStatus.planned:
+      case TripStatus.onWay:
+        return _TripStatus.upcoming;
+    }
   }
 
   Widget _buildEmpty() {
@@ -65,12 +99,12 @@ class MyTripsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(List<_TripRecord> trips) {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: _mockTrips.length,
+      itemCount: trips.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (_, i) => _TripCard(trip: _mockTrips[i]),
+      itemBuilder: (_, i) => _TripCard(trip: trips[i]),
     );
   }
 }

@@ -34,6 +34,7 @@ class TripViewModel extends ChangeNotifier {
       BookingConfirmationStatus.none;
   Trip? _confirmedTrip;
   Driver? _confirmedDriver;
+  final List<Trip> _myTrips = [];
 
   final Map<String, Driver> _driversCache = {};
   final Set<String> _driverFetchInProgress = {};
@@ -50,6 +51,7 @@ class TripViewModel extends ChangeNotifier {
   BookingConfirmationStatus get confirmationStatus => _confirmationStatus;
   Trip? get confirmedTrip => _confirmedTrip;
   Driver? get confirmedDriver => _confirmedDriver;
+  List<Trip> get myTrips => List.unmodifiable(_myTrips);
 
   Future<void> fetchTrips({
     required String from,
@@ -153,7 +155,9 @@ class TripViewModel extends ChangeNotifier {
             _confirmedTrip?.tripId != trip.tripId) {
           return;
         }
+        trip.updateStatus(TripStatus.arrived);
         _confirmationStatus = BookingConfirmationStatus.driverAccepted;
+        _addTripToHistoryIfNeeded(trip);
         _safeNotifyListeners();
       });
 
@@ -179,5 +183,11 @@ class TripViewModel extends ChangeNotifier {
   void _safeNotifyListeners() {
     if (_isDisposed) return;
     notifyListeners();
+  }
+
+  void _addTripToHistoryIfNeeded(Trip trip) {
+    final exists = _myTrips.any((stored) => stored.tripId == trip.tripId);
+    if (exists) return;
+    _myTrips.insert(0, trip);
   }
 }
